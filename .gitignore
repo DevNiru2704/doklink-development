@@ -1,185 +1,79 @@
-# OS-specific
+# ---------------- OS-specific ----------------
 .DS_Store
 Thumbs.db
 ehthumbs.db
-Icon?
 Desktop.ini
 $RECYCLE.BIN/
 
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.egg
-*.egg-info/
-dist/
-build/
-env/
-venv/
-.venv/
-pip-log.txt
-
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-package-lock.json
-.pnpm-debug.log
-
-# Java
-*.class
-*.jar
-*.war
-*.ear
-target/
-*.log
-
-# C/C++
-*.o
-*.obj
-*.exe
-*.dll
-*.out
-*.so
-
-# Rust
-/target/
-**/*.rs.bk
-
-# Go
-/bin/
-/pkg/
-*.test
-
-# .NET
-*.dll
-*.exe
-*.pdb
-*.cache
-*.mdb
-obj/
-bin/
-
-# PHP
-/vendor/
-*.log
-
-# Logs
-*.log
-*.gz
-
-# IDEs and editors
-.vscode/
-.idea/
-*.sublime-workspace
-*.sublime-project
-*.swp
-*.bak
-
-# macOS/Linux/Windows user files
-*.tmp
-*.temp
-*.old
-*.orig
-*.~*
-
-# Git files
-*.orig
-*.rej
-*.patch
-*.diff
-
-# Environment
-.env
-.env.*.local
-.env.local
-.envrc
-
-# Misc
-*.sqlite3
-*.db
-*.tar
-*.zip
-*.7z
-*.tgz
-*.bak
-*.iso
-*.img
-
-# Test output
-coverage/
-*.lcov
-
-# Jupyter
-.ipynb_checkpoints
-
-# VS Code settings sync
-.code-workspace
-
-
-# --- OS Files ---
-.DS_Store
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# --- IDEs / Editors ---
+# ---------------- IDEs / Editors ----------------
 .vscode/
 .idea/
 *.sublime-workspace
 *.sublime-project
 *.code-workspace
+*.swp
 
-# --- Node.js / Frontend ---
+# ---------------- Logs ----------------
+*.log
+*.log.*
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------------- Environment ----------------
+.env
+.env.*
+.envrc
+*.pem
+*.key
+*.crt
+
+# ---------------- Node.js / Frontend ----------------
 node_modules/
 dist/
 build/
-.npm/
 .cache/
+.pnpm/
+.npm/
 .expo/
 .expo-shared/
 .next/
 out/
 .babelrc
 webpack.config.js
+*.tsbuildinfo
 
-# --- Python / AI / ML ---
+# ---------------- Python / Django / AI / ML ----------------
 __pycache__/
 *.py[cod]
 *.pyo
-*.ipynb_checkpoints/
+*.pyd
 *.egg-info/
 *.eggs/
-*.log
-*.pickle
+.venv/
+venv/
+env/
+pip-log.txt
+pip-wheel-metadata/
+migrations/
+*.sqlite3
+*.db
+db.sqlite3
+media/
+staticfiles/
 *.h5
 *.pth
 *.onnx
 *.tflite
-.env
-.env.*
-.venv/
-venv/
-pip-wheel-metadata/
-migrations/
+*.pickle
 
-# --- Jupyter Notebook ---
-.ipynb_checkpoints
+# ---------------- Jupyter Notebooks ----------------
+.ipynb_checkpoints/
 *.nbconvert.ipynb
 
-# --- Django / Flask ---
-db.sqlite3
-*.db
-*.sqlite3
-media/
-staticfiles/
-*.pem
-*.key
-
-# --- Java ---
+# ---------------- Java ----------------
 *.class
 *.jar
 *.war
@@ -187,7 +81,7 @@ staticfiles/
 target/
 bin/
 
-# --- C / C++ / Go ---
+# ---------------- C / C++ / Go ----------------
 *.exe
 *.out
 *.obj
@@ -198,63 +92,53 @@ bin/
 *.dSYM/
 *.mod
 *.sum
+/pkg/
+*.test
 
-# --- Rust ---
+# ---------------- Rust ----------------
 target/
 Cargo.lock
 
-# --- JavaScript / TypeScript ---
-*.tsbuildinfo
+# ---------------- .NET ----------------
+*.dll
+*.exe
+*.pdb
+*.cache
+*.mdb
+obj/
+bin/
 
-# --- Logs / Reports ---
-*.log
-*.log.*
-logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# ---------------- PHP / Laravel ----------------
+/vendor/
 
-# --- Secrets / Credentials ---
-*.pem
-*.key
-*.crt
-*.env
-.env.*
-credentials.json
-secrets.json
-config.json
-local.settings.json
-
-# --- Docker ---
+# ---------------- Docker ----------------
 *.pid
 *.sock
 docker-compose.override.yml
 .env.docker
 
-# --- Test coverage ---
+# ---------------- Test Coverage ----------------
 coverage/
 .nyc_output/
 lcov-report/
 *.lcov
 
-# --- Cybersecurity Tools ---
-__pycache__/
+# ---------------- Cybersecurity Tools ----------------
 output/
 *.pcap
 *.pcapng
 *.nmap
-*.txt
-*.log
 *.xml
-*.json
 
-# --- Misc ---
-*.bak
-*.swp
+# ---------------- Misc / Temporary ----------------
 *.tmp
+*.temp
+*.old
 *.orig
 *.rej
+*.patch
+*.diff
+*.bak
 *~
-*.old
 *.save
 *.backup
