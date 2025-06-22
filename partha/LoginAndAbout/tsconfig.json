@@ -1,0 +1,25 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "module": "ESNext",
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "metro.config.js",
+    "babel.config.js",
+    "app.config.js",
+    "nativewind-env.d.ts",
+    "app.json",
+    "app.config.ts"
+  ]
+}
