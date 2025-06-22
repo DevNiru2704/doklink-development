@@ -118,3 +118,143 @@ coverage/
 
 # VS Code settings sync
 .code-workspace
+
+
+# --- OS Files ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- IDEs / Editors ---
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.code-workspace
+
+# --- Node.js / Frontend ---
+node_modules/
+dist/
+build/
+.npm/
+.cache/
+.expo/
+.expo-shared/
+.next/
+out/
+.babelrc
+webpack.config.js
+
+# --- Python / AI / ML ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.ipynb_checkpoints/
+*.egg-info/
+*.eggs/
+*.log
+*.pickle
+*.h5
+*.pth
+*.onnx
+*.tflite
+.env
+.env.*
+.venv/
+venv/
+pip-wheel-metadata/
+migrations/
+
+# --- Jupyter Notebook ---
+.ipynb_checkpoints
+*.nbconvert.ipynb
+
+# --- Django / Flask ---
+db.sqlite3
+*.db
+*.sqlite3
+media/
+staticfiles/
+*.pem
+*.key
+
+# --- Java ---
+*.class
+*.jar
+*.war
+*.ear
+target/
+bin/
+
+# --- C / C++ / Go ---
+*.exe
+*.out
+*.obj
+*.o
+*.a
+*.so
+*.dll
+*.dSYM/
+*.mod
+*.sum
+
+# --- Rust ---
+target/
+Cargo.lock
+
+# --- JavaScript / TypeScript ---
+*.tsbuildinfo
+
+# --- Logs / Reports ---
+*.log
+*.log.*
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Secrets / Credentials ---
+*.pem
+*.key
+*.crt
+*.env
+.env.*
+credentials.json
+secrets.json
+config.json
+local.settings.json
+
+# --- Docker ---
+*.pid
+*.sock
+docker-compose.override.yml
+.env.docker
+
+# --- Test coverage ---
+coverage/
+.nyc_output/
+lcov-report/
+*.lcov
+
+# --- Cybersecurity Tools ---
+__pycache__/
+output/
+*.pcap
+*.pcapng
+*.nmap
+*.txt
+*.log
+*.xml
+*.json
+
+# --- Misc ---
+*.bak
+*.swp
+*.tmp
+*.orig
+*.rej
+*~
+*.old
+*.save
+*.backup
