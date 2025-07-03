@@ -7,18 +7,18 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Formik } from "formik";
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  Image,
-  ImageBackground,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  useColorScheme
+    Alert,
+    Animated,
+    Image,
+    ImageBackground,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+    useColorScheme
 } from "react-native";
 import * as Yup from "yup";
 
@@ -26,7 +26,7 @@ import DefaultProfileImage from "../assets/images/default.png";
 import NetworkBackgroundImage from "../assets/images/network_background.png";
 
 import NetworkBackgroundImageLight from "../assets/images/light_background.png";
-import useThemedStyles from "./styles/SignUp";
+import useThemedStyles from "../styles/SignUp";
 
 import DataCollectionConsentForm from "./DataCollectionConsentForm";
 import PrivacyPolicy from "./PrivacyPolicy";

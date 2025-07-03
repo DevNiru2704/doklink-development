@@ -2,21 +2,21 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef } from "react";
 import {
-  Animated,
-  ImageBackground,
-  Linking,
-  ScrollView,
-  StatusBar,
-  Text,
-  TouchableOpacity,
-  View,
-  useColorScheme,
+    Animated,
+    ImageBackground,
+    Linking,
+    ScrollView,
+    StatusBar,
+    Text,
+    TouchableOpacity,
+    View,
+    useColorScheme,
 } from "react-native";
 import LogoSVGDark from "../assets/images/just_the_logo_dark.svg";
 import LogoSVGLight from "../assets/images/just_the_logo_light.svg";
 import NetworkBackgroundImageLight from "../assets/images/light_background.png";
 import NetworkBackgroundImage from "../assets/images/network_background.png";
-import useThemedStyles from "./styles/AgreementStyles";
+import useThemedStyles from "../styles/AgreementStyles";
 interface TermsAndConditionsProps {
   onBack: () => void;
 }
