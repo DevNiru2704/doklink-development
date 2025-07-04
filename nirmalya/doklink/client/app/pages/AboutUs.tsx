@@ -2,24 +2,24 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    ImageBackground,
-    Linking,
-    Pressable,
-    ScrollView,
-    StatusBar,
-    Text,
-    TouchableOpacity,
-    View,
-    useColorScheme,
+  Alert,
+  Animated,
+  ImageBackground,
+  Linking,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
+  useColorScheme,
 } from "react-native";
 import LogoSVGDark from "../assets/images/just_the_logo_dark.svg";
 import NetworkBackgroundImage from "../assets/images/network_background.png";
 
+import useThemedStyles from "../../styles/AboutUs";
 import LogoSVGLight from "../assets/images/just_the_logo_light.svg";
 import NetworkBackgroundImageLight from "../assets/images/light_background.png";
-import useThemedStyles from "../styles/AboutUs";
 
 interface AboutUsProps {
   onBack: () => void;
