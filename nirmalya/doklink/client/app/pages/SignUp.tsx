@@ -22,11 +22,11 @@ import {
 } from "react-native";
 import * as Yup from "yup";
 
-import DefaultProfileImage from "../../assets/images/default.png";
-import NetworkBackgroundImage from "../../assets/images/network_background.png";
+import DefaultProfileImage from "@/assets/images/default.png";
+import NetworkBackgroundImage from "@/assets/images/network_background.png";
 
-import NetworkBackgroundImageLight from "../../assets/images/light_background.png";
-import useThemedStyles from "../../styles/SignUp";
+import NetworkBackgroundImageLight from "@/assets/images/light_background.png";
+import useThemedStyles from "@/styles/SignUp";
 
 import DataCollectionConsentForm from "./DataCollectionConsentForm";
 import PrivacyPolicy from "./PrivacyPolicy";

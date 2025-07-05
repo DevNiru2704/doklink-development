@@ -3,9 +3,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, StatusBar, Text, View, useColorScheme } from "react-native";
 
-import LogoSVGDark from "../assets/images/just_the_logo_dark.svg";
-import LogoSVGLight from "../assets/images/just_the_logo_light.svg";
-import useThemedStyles from "../styles/index";
+import LogoSVGDark from "@/assets/images/just_the_logo_dark.svg";
+import LogoSVGLight from "@/assets/images/just_the_logo_light.svg";
+import useThemedStyles from "@/styles/index";
 
 import Home from "./(tabs)/Home";
 import StartingScreen from "./pages/StartingScreen";

@@ -16,12 +16,11 @@ import {
 } from "react-native";
 import * as Yup from "yup";
 
-import LogoSVGDark from "../../assets/images/just_the_logo_dark.svg";
-import LogoSVGLight from "../../assets/images/just_the_logo_light.svg";
-import NetworkBackgroundImageLight from "../../assets/images/light_background.png";
-import NetworkBackgroundImage from "../../assets/images/network_background.png";
-
-import useThemedStyles from "../../styles/Login";
+import LogoSVGDark from "@/assets/images/just_the_logo_dark.svg";
+import LogoSVGLight from "@/assets/images/just_the_logo_light.svg";
+import NetworkBackgroundImageLight from "@/assets/images/light_background.png";
+import NetworkBackgroundImage from "@/assets/images/network_background.png";
+import useThemedStyles from "@/styles/Login";
 
 interface LoginScreenProps {
   onBack: () => void;
