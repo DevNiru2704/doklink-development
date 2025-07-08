@@ -20,7 +20,7 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       {/* Logo */}
       <Image
-        source={require('../../assets//images/doklink-image.jpg')}
+        source={require('@/assets/images/doklink-image.jpg')}
         style={styles.logo}
         resizeMode="contain"
       />
