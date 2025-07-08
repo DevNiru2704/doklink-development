@@ -16,11 +16,11 @@ import {
 } from "react-native";
 import * as Yup from "yup";
 
-import AadhaarLogoSVG from "../../assets/images/aadhaar_logo.svg";
-import AadhaarLogoSVGLight from "../../assets/images/aadhaar_logo_light.svg";
-import NetworkBackgroundImageLight from "../../assets/images/light_background.png";
-import NetworkBackgroundImage from "../../assets/images/network_background.png";
-import useThemedStyles from "../../styles/AadharVerification";
+import AadhaarLogoSVG from "@/assets/images/aadhaar_logo.svg";
+import AadhaarLogoSVGLight from "@/assets/images/aadhaar_logo_light.svg";
+import NetworkBackgroundImageLight from "@/assets/images/light_background.png";
+import NetworkBackgroundImage from "@/assets/images/network_background.png";
+import useThemedStyles from "@/styles/AadharVerification";
 
 interface AadhaarVerificationProps {
   onBack: () => void;

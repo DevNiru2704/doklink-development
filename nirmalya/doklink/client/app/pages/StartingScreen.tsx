@@ -12,11 +12,11 @@ import {
   useColorScheme,
 } from "react-native";
 
-import LogoSVGDark from "../../assets/images/just_the_logo_dark.svg";
-import LogoSVGLight from "../../assets/images/just_the_logo_light.svg";
-import NetworkBackgroundImageLight from "../../assets/images/light_background.png";
-import NetworkBackgroundImage from "../../assets/images/network_background.png";
-import useThemedStyles from "../../styles/StartingScreen";
+import LogoSVGDark from "@/assets/images/just_the_logo_dark.svg";
+import LogoSVGLight from "@/assets/images/just_the_logo_light.svg";
+import NetworkBackgroundImageLight from "@/assets/images/light_background.png";
+import NetworkBackgroundImage from "@/assets/images/network_background.png";
+import useThemedStyles from "@/styles/StartingScreen";
 
 import AadhaarVerification from "./AadharVerification";
 import AboutUs from "./AboutUs";
