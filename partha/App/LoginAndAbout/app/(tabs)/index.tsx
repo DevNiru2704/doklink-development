@@ -9,12 +9,13 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { AntDesign } from '@expo/vector-icons';
+import LoginScreen from '../../../../Backend/project/app/(auth)/login'; // Adjust the import path as necessary
 
 export default function App() {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  // const [username, setUsername] = useState('');
+  // const [email, setEmail] = useState('');
+  // const [password, setPassword] = useState('');
+  // const [showPassword, setShowPassword] = useState(false);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -27,26 +28,26 @@ export default function App() {
       <Text style={styles.title}>Doklink</Text>
 
       {/* Username */}
-      <TextInput
+      {/* <TextInput
         style={styles.input}
         placeholder="Username"
         placeholderTextColor="#aaa"
         value={username}
         onChangeText={setUsername}
-      />
+      /> */}
 
       {/* Email */}
-      <TextInput
+      {/* <TextInput
         style={styles.input}
         placeholder="Email"
         placeholderTextColor="#aaa"
         keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
-      />
+      /> */}
 
       {/* Password */}
-      <View style={styles.passwordContainer}>
+      {/* <View style={styles.passwordContainer}>
         <TextInput
           style={styles.passwordInput}
           placeholder="Password"
@@ -58,19 +59,32 @@ export default function App() {
         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
           <Text style={styles.showText}>{showPassword ? 'Hide' : 'Show'}</Text>
         </TouchableOpacity>
-      </View>
+      </View> */}
 
       {/* Remember Me and Forgot Password */}
-      <View style={styles.rememberForgot}>
+      {/* <View style={styles.rememberForgot}>
         <View style={styles.checkboxContainer}>
           <View style={styles.checkbox} />
           <Text style={styles.checkboxLabel}>Remember me</Text>
         </View>
         <Text style={styles.forgotText}>Forgot password?</Text>
-      </View>
+      </View> */}
 
       {/* Login Button */}
-      <TouchableOpacity style={styles.loginButton}>
+      <TouchableOpacity
+        style={{
+          backgroundColor: '#00aaff',
+          padding: 10,
+          width: '100%',
+          borderWidth: 1,
+          borderRadius: 8,
+          alignItems: 'center',
+          marginBottom: 15,
+        }}
+        onPress={() => {
+          LoginScreen(); // Call the login function from the imported module
+        }}
+      >
         <Text style={styles.loginText}>Log in</Text>
       </TouchableOpacity>
 

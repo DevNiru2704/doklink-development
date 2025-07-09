@@ -5,14 +5,13 @@ import { View, Text, ScrollView, StyleSheet, ImageBackground, TouchableOpacity }
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-const aboutBackground = require('../../assets/images/doklink-image.jpg');
 
 
 export default function AboutUsScreen() {
   const router = useRouter();
   return (
     <ImageBackground
-      source={aboutBackground}
+      source={require('@/assets/images/doklink-image.jpg')}
       style={styles.background}
       resizeMode="cover"
     >
