@@ -1,5 +1,5 @@
 import { LoginRequest, AuthResponse } from '@/types/auth';
-import { validateEmail, validatePassword, findUser, verifyPassword, generateToken } from '@/lib/auth';
+import { validateEmail, findUser, verifyPassword, generateToken } from '@/lib/auth';
 
 export async function POST(request: Request): Promise<Response> {
   try {

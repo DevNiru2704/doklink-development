@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AuthState, User } from '@/types/auth';
+import { AuthState } from '@/types/auth';
 import { AUTH_STORAGE_KEY, getStorageItem, setStorageItem, removeStorageItem } from '@/lib/auth';
 
 interface AuthContextType extends AuthState {

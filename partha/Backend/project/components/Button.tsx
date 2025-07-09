@@ -88,7 +88,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 16,
     fontWeight: '600',
-    fontFamily: 'Inter-SemiBold',
   },
   primaryText: {
     color: '#FFFFFF',

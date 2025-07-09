@@ -28,7 +28,7 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <Text style={styles.greeting}>Welcome back,</Text>
           <Text style={styles.name}>{user?.name || 'User'}</Text>
-          <Text style={styles.subtitle}>Here's your dashboard overview</Text>
+          <Text style={styles.subtitle}>Here&apos;s your dashboard overview</Text>
         </View>
 
         <View style={styles.content}>

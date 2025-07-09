@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, TextInput, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Eye, EyeOff } from 'lucide-react-native';
 
@@ -65,9 +65,24 @@ export const Input: React.FC<InputProps> = ({
   const [isSecure, setIsSecure] = useState(secureTextEntry);
   const [isFocused, setIsFocused] = useState(false);
 
-  const handleToggleSecure = () => {
+  const handleToggleSecure = useCallback(() => {
     setIsSecure(!isSecure);
-  };
+  }, [isSecure]);
+
+  const handleFocus = useCallback(() => {
+    console.log('Input focused:', label);
+    setIsFocused(true);
+  }, [label]);
+
+  const handleBlur = useCallback(() => {
+    console.log('Input blurred:', label);
+    setIsFocused(false);
+  }, [label]);
+
+  const handleTextChange = useCallback((text: string) => {
+    console.log('Text changed:', label, text);
+    onChangeText(text);
+  }, [label, onChangeText]);
 
   return (
     <View style={styles.container}>
@@ -78,20 +93,27 @@ export const Input: React.FC<InputProps> = ({
         <TextInput
           style={styles.input}
           value={value}
-          onChangeText={onChangeText}
+          onChangeText={handleTextChange}
           placeholder={placeholder}
           placeholderTextColor="#9CA3AF"
           secureTextEntry={isSecure}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           autoComplete={autoComplete}
+          blurOnSubmit={false}
+          autoCorrect={false}
+          returnKeyType="next"
+          selectTextOnFocus={false}
+          enablesReturnKeyAutomatically={true}
+          caretHidden={false}
         />
         {secureTextEntry && (
           <TouchableOpacity
             style={styles.toggleButton}
             onPress={handleToggleSecure}
+            activeOpacity={0.7}
           >
             {isSecure ? (
               <EyeOff size={20} color="#9CA3AF" />
@@ -115,7 +137,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
-    fontFamily: 'Inter-SemiBold',
   },
   labelFocused: {
     color: '#3B82F6',
@@ -129,6 +150,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     paddingHorizontal: 16,
     height: 56,
+    overflow: 'hidden',
   },
   inputFocused: {
     borderColor: '#3B82F6',
@@ -150,7 +172,8 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#111827',
-    fontFamily: 'Inter-Regular',
+    paddingVertical: 0,
+    margin: 0,
   },
   toggleButton: {
     padding: 4,
@@ -159,6 +182,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#EF4444',
     marginTop: 4,
-    fontFamily: 'Inter-Regular',
   },
 });
