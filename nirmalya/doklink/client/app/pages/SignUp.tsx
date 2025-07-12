@@ -7,7 +7,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Formik } from "formik";
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Image,
   ImageBackground,
@@ -24,13 +23,16 @@ import * as Yup from "yup";
 
 import DefaultProfileImage from "@/assets/images/default.png";
 import NetworkBackgroundImage from "@/assets/images/network_background.png";
-
 import NetworkBackgroundImageLight from "@/assets/images/light_background.png";
 import useThemedStyles from "@/styles/SignUp";
 
 import DataCollectionConsentForm from "./DataCollectionConsentForm";
 import PrivacyPolicy from "./PrivacyPolicy";
 import TermsAndConditions from "./TermsAndCondition";
+
+// Import API services
+import { authService, INDIAN_STATES } from "../../services/authService";
+import { cloudinaryService } from "../../services/cloudinaryService";
 
 interface SignUpProps {
   onBack: () => void;
@@ -160,8 +162,20 @@ const validationSchema = Yup.object().shape({
   
   phoneNumber: Yup.string()
     .required("Phone number is required")
-    .test("valid-phone", "Please enter a valid phone number", (value) => {
-      return value ? /^[6-9][0-9]{9}$/.test(value) : false;
+    .test("valid-phone", "Please enter a valid Indian phone number", (value) => {
+      if (!value) return false;
+      
+      // Remove any spaces, dashes, or other non-digit characters except +
+      const cleaned = value.replace(/[^\d+]/g, '');
+      
+      // Check different valid formats
+      const patterns = [
+        /^[6-9][0-9]{9}$/,        // 10 digits starting with 6-9
+        /^\+91[6-9][0-9]{9}$/,    // +91 followed by 10 digits starting with 6-9
+        /^91[6-9][0-9]{9}$/       // 91 followed by 10 digits starting with 6-9
+      ];
+      
+      return patterns.some(pattern => pattern.test(cleaned));
     }),
   
   permanentAddress: Yup.object().shape({
@@ -266,43 +280,13 @@ const backgroundImage = colorScheme === 'dark' ? NetworkBackgroundImage : Networ
       notifications: false,
     },
   };
-
+  
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Indian states for dropdown
-  const indianStates = [
-    "Select State",
-    "Andhra Pradesh",
-    "Arunachal Pradesh",
-    "Assam",
-    "Bihar",
-    "Chhattisgarh",
-    "Goa",
-    "Gujarat",
-    "Haryana",
-    "Himachal Pradesh",
-    "Jharkhand",
-    "Karnataka",
-    "Kerala",
-    "Madhya Pradesh",
-    "Maharashtra",
-    "Manipur",
-    "Meghalaya",
-    "Mizoram",
-    "Nagaland",
-    "Odisha",
-    "Punjab",
-    "Rajasthan",
-    "Sikkim",
-    "Tamil Nadu",
-    "Telangana",
-    "Tripura",
-    "Uttar Pradesh",
-    "Uttarakhand",
-    "West Bengal",
-  ];
+  // Indian states for dropdown (from API service)
+  const indianStates = ["Select State", ...INDIAN_STATES];
 
   const languages = [
     "English",
@@ -345,23 +329,87 @@ const backgroundImage = colorScheme === 'dark' ? NetworkBackgroundImage : Networ
     return email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, '');
   };
 
-  // Handle profile picture selection
-  const handleSignUp = (values: any) => {
+  // Handle form submission with real API call
+  const handleSignUp = async (values: any, { setStatus, setSubmitting }: any) => {
+    // Clear any previous errors
+    setStatus(null);
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    setSubmitting(true);
+    
+    try {
+      // Add aadhaarNumber from props to the form values
+      const valuesWithAadhaar = {
+        ...values,
+        aadhaarNumber: aadhaarNumber
+      };
+      
+      // Upload profile picture to Cloudinary if selected
+      let profilePictureUrl = null;
+      if (valuesWithAadhaar.profilePicture?.uri && valuesWithAadhaar.profilePicture.uri.startsWith('file://')) {
+        setStatus({
+          type: 'info',
+          message: 'Uploading profile picture...'
+        });
+        
+        try {
+          profilePictureUrl = await cloudinaryService.uploadImage(
+            valuesWithAadhaar.profilePicture.uri,
+            valuesWithAadhaar.username
+          );
+          console.log('✅ Profile picture uploaded:', profilePictureUrl);
+        } catch (uploadError) {
+          console.error('❌ Image upload failed:', uploadError);
+          // Continue with signup even if image upload fails
+          setStatus({
+            type: 'warning',
+            message: 'Image upload failed, but continuing with signup...'
+          });
+        }
+      }
+      
+      // Update values with Cloudinary URL
+      const finalValues = {
+        ...valuesWithAadhaar,
+        profilePicture: profilePictureUrl ? { url: profilePictureUrl } : null
+      };
+      
+      setStatus({
+        type: 'info',
+        message: 'Creating your account...'
+      });
+      
+      // Transform form data to API format
+      const signUpData = authService.transformSignUpData(finalValues);
+      
+      // Call the API
+      await authService.signUp(signUpData);
+      
+      // Navigate to verification or success page on success
       onSignUp();
-    }, 2000);
+      
+    } catch (error: any) {
+      // Set error message for display in form
+      setStatus({
+        type: 'error',
+        message: error.message || "Registration failed. Please try again."
+      });
+      
+      console.error('SignUp Error:', error);
+    } finally {
+      setIsLoading(false);
+      setSubmitting(false);
+    }
   };
 
-  const selectProfilePicture = async (setFieldValue: (field: string, value: any) => void) => {
+  const selectProfilePicture = async (setFieldValue: (field: string, value: any) => void, setStatus?: (status: any) => void) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
-        "Permission needed",
-        "Please grant camera roll permissions to select a profile picture."
-      );
+      if (setStatus) {
+        setStatus({
+          type: 'error',
+          message: "Please grant camera roll permissions to select a profile picture."
+        });
+      }
       return;
     }
 
@@ -409,10 +457,14 @@ const backgroundImage = colorScheme === 'dark' ? NetworkBackgroundImage : Networ
       validationSchema={validationSchema}
       onSubmit={handleSignUp}
     >
-      {({ values, errors, touched, handleChange, handleBlur, setFieldValue, handleSubmit }) => {
+      {({ values, errors, touched, status, handleChange, handleBlur, setFieldValue, setStatus, handleSubmit, isSubmitting }) => {
         // Auto-generate username when email changes
         const handleEmailChange = (text: string) => {
           handleChange("email")(text);
+          // Clear any error status when user starts typing
+          if (status && status.type === 'error') {
+            setStatus(null);
+          }
           if (text.includes("@")) {
             const username = generateUsername(text);
             setFieldValue("username", username);
@@ -478,7 +530,7 @@ const backgroundImage = colorScheme === 'dark' ? NetworkBackgroundImage : Networ
             <View style={styles.profileSection}>
               <TouchableOpacity
                 style={styles.profilePictureContainer}
-                onPress={() => selectProfilePicture(setFieldValue)}
+                onPress={() => selectProfilePicture(setFieldValue, setStatus)}
                 activeOpacity={0.7}
               >
                 <Image
@@ -1037,11 +1089,18 @@ const backgroundImage = colorScheme === 'dark' ? NetworkBackgroundImage : Networ
               ))}
             </View>
 
+            {/* Error Display */}
+            {status && status.type === 'error' && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{status.message}</Text>
+              </View>
+            )}
+
             {/* Sign Up Button */}
             {colorScheme === "light" ? (
               <Pressable
                 onPress={() => handleSubmit()}
-                disabled={isLoading}
+                disabled={isLoading || isSubmitting}
                 onPressIn={() => setSignUpButtonPressed(true)}
                 onPressOut={() => setSignUpButtonPressed(false)}
               >
@@ -1053,21 +1112,21 @@ const backgroundImage = colorScheme === 'dark' ? NetworkBackgroundImage : Networ
                   }
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={[styles.signUpButton, isLoading && styles.disabledButton]}
+                  style={[styles.signUpButton, (isLoading || isSubmitting) && styles.disabledButton]}
                 >
                   <Text style={styles.signUpButtonText}>
-                    {isLoading ? "Creating Account..." : "Sign Up"}
+                    {(isLoading || isSubmitting) ? "Creating Account..." : "Sign Up"}
                   </Text>
                 </LinearGradient>
               </Pressable>
             ) : (
               <TouchableOpacity
-                style={[styles.signUpButton, isLoading && styles.disabledButton]}
+                style={[styles.signUpButton, (isLoading || isSubmitting) && styles.disabledButton]}
                 onPress={() => handleSubmit()}
-                disabled={isLoading}
+                disabled={isLoading || isSubmitting}
               >
                 <Text style={styles.signUpButtonText}>
-                  {isLoading ? "Creating Account..." : "Sign Up"}
+                  {(isLoading || isSubmitting) ? "Creating Account..." : "Sign Up"}
                 </Text>
               </TouchableOpacity>
             )}

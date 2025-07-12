@@ -13,7 +13,7 @@
       "bundleIdentifier": "com.yourname.doklink"
     },
     "android": {
-      "package": "com.yourname.doklink", 
+      "package": "com.yourname.doklink",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
@@ -35,7 +35,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

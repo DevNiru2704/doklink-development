@@ -1,0 +1,84 @@
+// config/cloudinary.ts
+// Cloudinary Configuration fetched from backend
+
+export interface CloudinaryConfig {
+  cloudName: string;
+  uploadPreset: string;
+  folder: string;
+}
+
+// This will be populated by fetchCloudinaryConfig()
+let cloudinaryConfig: CloudinaryConfig | null = null;
+
+/**
+ * Fetch Cloudinary configuration from backend
+ * This ensures credentials are stored securely on the server
+ */
+export async function fetchCloudinaryConfig(): Promise<CloudinaryConfig> {
+  try {
+    // Use the backend API endpoint
+    const response = await fetch('http://192.168.1.103:8000/api/v1/auth/cloudinary-config/');
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Cloudinary config: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to get Cloudinary configuration');
+    }
+    
+    // Cache the config
+    cloudinaryConfig = data.config;
+    
+    console.log('✅ Cloudinary config loaded from backend');
+    return cloudinaryConfig as CloudinaryConfig;
+    
+  } catch (error) {
+    console.error('❌ Failed to fetch Cloudinary config:', error);
+    throw new Error('Could not load Cloudinary configuration. Please check your connection.');
+  }
+}
+
+/**
+ * Get cached Cloudinary config
+ * Call fetchCloudinaryConfig() first to populate the cache
+ */
+export function getCloudinaryConfig(): CloudinaryConfig {
+  if (!cloudinaryConfig) {
+    throw new Error('Cloudinary config not loaded. Call fetchCloudinaryConfig() first.');
+  }
+  return cloudinaryConfig;
+}
+
+/**
+ * Legacy export for backward compatibility
+ * @deprecated Use fetchCloudinaryConfig() instead
+ */
+export const CLOUDINARY_CONFIG = {
+  CLOUD_NAME: '',
+  API_KEY: '',
+  API_SECRET: '',
+  UPLOAD_PRESET: '',
+  FOLDER: ''
+};
+
+// Instructions for setting up Cloudinary on the backend:
+/*
+1. Add these to your .env file on the server:
+   CLOUDINARY_CLOUD_NAME=your-cloud-name
+   CLOUDINARY_API_KEY=your-api-key
+   CLOUDINARY_API_SECRET=your-api-secret
+   CLOUDINARY_UPLOAD_PRESET=doklink_upload_preset
+   CLOUDINARY_FOLDER=doklink/profile_pictures
+
+2. Create an unsigned upload preset in Cloudinary Dashboard:
+   - Go to Settings > Upload > Upload presets
+   - Click "Add upload preset"
+   - Name: doklink_upload_preset
+   - Signing Mode: "Unsigned"
+   - Save the preset
+
+3. The frontend will fetch config securely from the backend API
+*/

@@ -276,6 +276,15 @@ const dark = StyleSheet.create({
     fontWeight: "500",
   },
   // Error styles
+  errorContainer: {
+    backgroundColor: "rgba(220, 38, 38, 0.1)",
+    borderColor: "#DC2626",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    marginHorizontal: 4,
+  },
   errorText: {
     color: "#DC2626",
     fontSize: 12,
@@ -611,6 +620,15 @@ const light = StyleSheet.create({
     fontWeight: "500",
   },
   // Error styles
+  errorContainer: {
+    backgroundColor: "rgba(220, 38, 38, 0.1)",
+    borderColor: "#DC2626",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    marginHorizontal: 4,
+  },
   errorText: {
     color: "#DC2626",
     fontSize: 12,
