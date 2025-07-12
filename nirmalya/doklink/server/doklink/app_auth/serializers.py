@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from .models import UserProfile, Address, UserAgreement
+from .models import UserProfile, Address, UserAgreement, OTPVerification
 import re
 from datetime import datetime, date
 
@@ -308,31 +308,104 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    """Serializer for user login"""
-    email = serializers.EmailField()
-    password = serializers.CharField(style={'input_type': 'password'})
+    """Enhanced serializer for user login supporting multiple methods and OTP"""
+    login_field = serializers.CharField(help_text="Phone number, email, or username")
+    password = serializers.CharField(style={'input_type': 'password'}, required=False)
+    otp = serializers.CharField(max_length=6, required=False)
+    login_method = serializers.ChoiceField(choices=['phone', 'email', 'username'])
+    auth_mode = serializers.ChoiceField(choices=['password', 'otp'])
+
+    def validate_login_field(self, value):
+        """Validate login field based on method"""
+        method = self.initial_data.get('login_method', 'email')
+        
+        if method == 'phone':
+            # Indian phone number validation
+            phone_pattern = r'^(\+91|91)?[6-9]\d{9}$'
+            if not re.match(phone_pattern, value):
+                raise serializers.ValidationError(
+                    "Please enter a valid Indian phone number"
+                )
+        elif method == 'email':
+            # Email validation
+            if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', value):
+                raise serializers.ValidationError(
+                    "Please enter a valid email address"
+                )
+        elif method == 'username':
+            # Username validation
+            if not re.match(r'^[a-z][a-z0-9]*$', value):
+                raise serializers.ValidationError(
+                    "Username must start with lowercase letter and contain only lowercase letters and digits"
+                )
+        
+        return value
 
     def validate(self, attrs):
-        email = attrs.get('email')
+        login_field = attrs.get('login_field')
         password = attrs.get('password')
+        otp = attrs.get('otp')
+        login_method = attrs.get('login_method')
+        auth_mode = attrs.get('auth_mode')
 
-        if email and password:
-            user = authenticate(request=self.context.get('request'),
-                              username=email, password=password)
-            
-            if not user:
-                raise serializers.ValidationError(
-                    'Unable to log in with provided credentials.'
-                )
-            
-            if not user.is_active:
-                raise serializers.ValidationError(
-                    'User account is disabled.'
-                )
-            
-            attrs['user'] = user
-            return attrs
+        if auth_mode == 'password' and not password:
+            raise serializers.ValidationError({'password': 'Password is required for password authentication'})
         
-        raise serializers.ValidationError(
-            'Must include "email" and "password".'
-        )
+        if auth_mode == 'otp' and not otp:
+            raise serializers.ValidationError({'otp': 'OTP is required for OTP authentication'})
+
+        # Find user based on login method
+        user = None
+        if login_method == 'email':
+            try:
+                user = User.objects.get(email=login_field.lower())
+            except User.DoesNotExist:
+                raise serializers.ValidationError({'login_field': 'No account found with this email'})
+        
+        elif login_method == 'phone':
+            # Normalize phone number for lookup
+            normalized_phone = login_field
+            if login_field.startswith('+91'):
+                normalized_phone = login_field[3:]
+            elif login_field.startswith('91'):
+                normalized_phone = login_field[2:]
+            
+            try:
+                profile = UserProfile.objects.get(phone_number__endswith=normalized_phone)
+                user = profile.user
+            except UserProfile.DoesNotExist:
+                raise serializers.ValidationError({'login_field': 'No account found with this phone number'})
+        
+        elif login_method == 'username':
+            try:
+                user = User.objects.get(username=login_field.lower())
+            except User.DoesNotExist:
+                raise serializers.ValidationError({'login_field': 'No account found with this username'})
+
+        if not user.is_active:
+            raise serializers.ValidationError({'login_field': 'Account is disabled'})
+
+        # Authenticate based on mode
+        if auth_mode == 'password':
+            if not user.check_password(password):
+                raise serializers.ValidationError({'password': 'Invalid password'})
+        
+        elif auth_mode == 'otp':
+            # Verify OTP
+            from django.utils import timezone
+            try:
+                otp_record = OTPVerification.objects.get(
+                    user=user,
+                    otp_type='login_2fa',
+                    otp_code=otp,
+                    is_used=False,
+                    expires_at__gt=timezone.now()
+                )
+                # Mark OTP as used
+                otp_record.is_used = True
+                otp_record.save()
+            except OTPVerification.DoesNotExist:
+                raise serializers.ValidationError({'otp': 'Invalid or expired OTP'})
+
+        attrs['user'] = user
+        return attrs

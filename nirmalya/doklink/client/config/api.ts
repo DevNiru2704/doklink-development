@@ -208,6 +208,46 @@ export interface VerificationStatus {
   aadhaar_verified: boolean;
 }
 
+// New interfaces for enhanced OTP functionality
+export interface OTPDeliveryOption {
+  method: 'email' | 'sms';
+  display: string;
+  destination: string;
+  description: string;
+}
+
+export interface UsernameOTPOptionsRequest {
+  username: string;
+}
+
+export interface UsernameOTPOptionsResponse {
+  username: string;
+  options: OTPDeliveryOption[];
+  message: string;
+}
+
+export interface LoginOTPRequest {
+  login_field: string;
+  login_method: 'email' | 'phone' | 'username';
+  delivery_method?: 'email' | 'sms' | 'auto';
+}
+
+export interface LoginOTPResponse {
+  message: string;
+  delivery_method: string;
+}
+
+export interface ForgotPasswordOTPRequest {
+  login_field: string;
+  login_method: 'email' | 'phone' | 'username';
+  delivery_method?: 'email' | 'sms' | 'auto';
+}
+
+export interface ForgotPasswordOTPResponse {
+  message: string;
+  delivery_method: string;
+}
+
 // Indian States for dropdown
 export const INDIAN_STATES = [
   'Andhra Pradesh',
@@ -240,12 +280,17 @@ export const INDIAN_STATES = [
   'West Bengal',
 ];
 
-// Legacy API endpoints for compatibility
+// API endpoints for authentication and verification
 export const API_ENDPOINTS = {
   // Authentication
   SIGNUP: '/signup/',
   LOGIN: '/login/',
   PROFILE: '/profile/',
+  
+  // Login OTP
+  GET_USERNAME_OTP_OPTIONS: '/get-username-otp-options/',
+  SEND_LOGIN_OTP: '/send-login-otp/',
+  VERIFY_LOGIN_OTP: '/verify-login-otp/',
   
   // Email/Phone Verification
   VERIFY_EMAIL: '/verify-email/',
@@ -256,6 +301,9 @@ export const API_ENDPOINTS = {
   // Password Reset
   RESET_PASSWORD_REQUEST: '/reset-password-request/',
   RESET_PASSWORD_CONFIRM: '/reset-password-confirm/',
+  SEND_FORGOT_PASSWORD_OTP: '/send-forgot-password-otp/',
+  VERIFY_FORGOT_PASSWORD_OTP: '/verify-forgot-password-otp/',
+  CONFIRM_PASSWORD_RESET: '/confirm-password-reset/',
 };
 
 export default apiClient;

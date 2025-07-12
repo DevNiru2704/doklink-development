@@ -209,7 +209,7 @@ class UserAgreement(models.Model):
 
 
 class OTPVerification(models.Model):
-    """OTP verification for email and phone"""
+    """Enhanced OTP verification for email and phone with delivery tracking"""
     
     OTP_TYPE_CHOICES = [
         ('email', 'Email Verification'),
@@ -219,13 +219,30 @@ class OTPVerification(models.Model):
         ('admin_login', 'Admin Login Verification'),
     ]
     
+    DELIVERY_METHOD_CHOICES = [
+        ('email', 'Email'),
+        ('sms', 'SMS'),
+        ('auto', 'Auto-detect based on login method'),
+    ]
+    
+    DELIVERY_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('sent', 'Sent Successfully'),
+        ('failed', 'Delivery Failed'),
+        ('retry', 'Retrying'),
+    ]
+    
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='otp_verifications')
     otp_type = models.CharField(max_length=20, choices=OTP_TYPE_CHOICES)
     otp_code = models.CharField(max_length=8)  # Increased for password reset tokens
+    delivery_method = models.CharField(max_length=10, choices=DELIVERY_METHOD_CHOICES, default='auto')
+    delivery_status = models.CharField(max_length=10, choices=DELIVERY_STATUS_CHOICES, default='pending')
+    delivery_destination = models.CharField(max_length=255, blank=True, help_text="Email or phone where OTP was sent")
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     is_used = models.BooleanField(default=False)
     attempts = models.IntegerField(default=0)
+    max_attempts = models.IntegerField(default=3)
 
     class Meta:
         verbose_name = "OTP Verification"
@@ -252,11 +269,15 @@ class OTPVerification(models.Model):
         return timezone.now() > self.expires_at
 
     def is_valid(self):
-        """Check if OTP is valid (not used and not expired)"""
-        return not self.is_used and not self.is_expired()
+        """Check if OTP is valid (not used, not expired, and attempts within limit)"""
+        return not self.is_used and not self.is_expired() and self.attempts < self.max_attempts
+    
+    def can_retry_delivery(self):
+        """Check if OTP delivery can be retried"""
+        return self.delivery_status in ['failed', 'retry'] and not self.is_expired()
 
     def __str__(self):
-        return f"{self.user.email} - {self.get_otp_type_display()} OTP"
+        return f"{self.user.email} - {self.get_otp_type_display()} OTP ({self.delivery_method})"
 
 
 class LoginAudit(models.Model):

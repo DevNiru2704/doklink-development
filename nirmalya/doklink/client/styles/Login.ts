@@ -135,9 +135,10 @@ const dark = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     width: "100%",
-    maxWidth: 300,
+    maxWidth: 320,
     alignSelf: "center",
     marginBottom: 16,
+    paddingHorizontal: 10,
   },
   otpInput: {
     width: 45,
@@ -148,6 +149,7 @@ const dark = StyleSheet.create({
     borderRadius: 8,
     fontSize: 20,
     color: "#E2E8F0",
+    marginHorizontal: 2,
     fontWeight: "600",
   },
   otpInputDimmed: {
@@ -336,6 +338,12 @@ const dark = StyleSheet.create({
     marginTop: 4,
     marginLeft: 4,
   },
+  backendErrorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    marginLeft: 8,
+    flex: 1,
+  },
   proceedSection: {
     marginTop: 30,
     alignItems: "center",
@@ -348,6 +356,38 @@ const dark = StyleSheet.create({
   errorInput: {
     borderColor: "#EF4444",
     borderWidth: 1,
+  },
+  // Compact styles for better spacing
+  compactFormContainer: {
+    paddingHorizontal: 20,
+  },
+  compactTitle: {
+    fontSize: 20,
+    marginBottom: 8,
+  },
+  compactSubtitle: {
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  compactAlternativeContainer: {
+    marginBottom: 16,
+  },
+  compactMethodOption: {
+    paddingVertical: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  compactMethodOptionText: {
+    fontSize: 14,
+  },
+  compactDestinationText: {
+    fontSize: 12,
+    marginBottom: 0,
+    textAlign: 'left',
+  },
+  compactActionLinks: {
+    marginTop: 12,
   },
 });
 
@@ -502,9 +542,10 @@ const light = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     width: "100%",
-    maxWidth: 300,
+    maxWidth: 320,
     alignSelf: "center",
     marginBottom: 16,
+    paddingHorizontal: 10,
   },
   otpInput: {
     width: 45,
@@ -516,6 +557,7 @@ const light = StyleSheet.create({
     fontSize: 20,
     color: "#1F2937",
     fontWeight: "600",
+    marginHorizontal: 2,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -734,6 +776,12 @@ const light = StyleSheet.create({
     marginTop: 4,
     marginLeft: 4,
   },
+  backendErrorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    marginLeft: 8,
+    flex: 1,
+  },
   proceedSection: {
     marginTop: 30,
     alignItems: "center",
@@ -746,6 +794,38 @@ const light = StyleSheet.create({
   errorInput: {
     borderColor: "#EF4444",
     borderWidth: 1,
+  },
+  // Compact styles for better spacing (light mode)
+  compactFormContainer: {
+    paddingHorizontal: 20,
+  },
+  compactTitle: {
+    fontSize: 20,
+    marginBottom: 8,
+  },
+  compactSubtitle: {
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  compactAlternativeContainer: {
+    marginBottom: 16,
+  },
+  compactMethodOption: {
+    paddingVertical: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  compactMethodOptionText: {
+    fontSize: 14,
+  },
+  compactDestinationText: {
+    fontSize: 12,
+    marginBottom: 0,
+    textAlign: 'left',
+  },
+  compactActionLinks: {
+    marginTop: 12,
   },
 });
 

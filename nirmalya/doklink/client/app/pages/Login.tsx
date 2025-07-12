@@ -21,6 +21,7 @@ import LogoSVGLight from "@/assets/images/just_the_logo_light.svg";
 import NetworkBackgroundImageLight from "@/assets/images/light_background.png";
 import NetworkBackgroundImage from "@/assets/images/network_background.png";
 import useThemedStyles from "@/styles/Login";
+import { authService } from "@/services/authService";
 
 interface LoginScreenProps {
   onBack: () => void;
@@ -32,13 +33,8 @@ interface LoginScreenProps {
 type LoginMethodType = "phone" | "email" | "username";
 type LoginModeType = "password" | "otp";
 type ForgotPasswordStep = "send_otp" | "verify_otp" | "reset_password";
-type ScreenType = "method_selection" | "login_form" | "forgot_password";
-
-// Hardcoded credentials - only for password and OTP validation
-const HARDCODED_CREDENTIALS = {
-  password: "Aa#1234",
-  otp: "123456",
-};
+type ScreenType = "method_selection" | "login_form" | "forgot_password" | "username_otp_choice" | "forgot_password_otp_choice";
+type DeliveryMethodType = "email" | "sms";
 
 // Validation schemas
 const loginValidationSchema = Yup.object({
@@ -166,6 +162,14 @@ interface ForgotPasswordFormValues {
   general?: string;
 }
 
+// OTP delivery option interface
+interface OTPDeliveryOption {
+  method: 'email' | 'sms';
+  display: string;
+  destination: string;
+  description: string;
+}
+
 export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
   const fadeInAnimation = useRef(new Animated.Value(0)).current;
   const slideInAnimation = useRef(new Animated.Value(50)).current;
@@ -178,6 +182,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
   // State variables
   const [currentScreen, setCurrentScreen] = useState<ScreenType>("method_selection");
   const [loginMethod, setLoginMethod] = useState<LoginMethodType>("phone");
+  const [loginMode, setLoginMode] = useState<LoginModeType>("password");
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -193,6 +198,13 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
   // OTP state managemen
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [forgotPasswordOtp, setForgotPasswordOtp] = useState(["", "", "", "", "", ""]);
+
+  // Username OTP delivery options state
+  const [usernameOTPOptions, setUsernameOTPOptions] = useState<OTPDeliveryOption[]>([]);
+  const [selectedDeliveryMethod, setSelectedDeliveryMethod] = useState<DeliveryMethodType | null>(null);
+  const [isLoadingOTPOptions, setIsLoadingOTPOptions] = useState(false);
+  const [currentUsername, setCurrentUsername] = useState("");
+  const [forgotPasswordStep, setForgotPasswordStep] = useState<ForgotPasswordStep>("send_otp");
 
   // Button press states for light mode gradients
   const [loginButtonPressed, setLoginButtonPressed] = useState(false);
@@ -276,6 +288,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
   const resetForm = () => {
     setCurrentScreen("method_selection");
     setLoginMethod("phone");
+    setLoginMode("password");
     setShowPassword(false);
     setShowNewPassword(false);
     setShowConfirmPassword(false);
@@ -287,8 +300,12 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
     setOtpSent(false);
     setResendTimer(30);
     setShowResendButton(false);
+    // Clear OTP arrays securely
     setOtp(["", "", "", "", "", ""]);
     setForgotPasswordOtp(["", "", "", "", "", ""]);
+    // Clear sensitive data
+    setResetToken("");
+    setCurrentLoginField("");
     // Reset button press states
     setMethodButtonPressed(null);
     setLoginButtonPressed(false);
@@ -296,14 +313,31 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
     setForgotPasswordButtonPressed(false);
   };
 
-  const validateCredentials = (method: LoginMethodType, loginField: string, password: string): boolean => {
-    // Only validate password against hardcoded value
-    return password === HARDCODED_CREDENTIALS.password;
+  // Enhanced OTP clearing function
+  const clearOtpData = () => {
+    setOtp(["", "", "", "", "", ""]);
+    setForgotPasswordOtp(["", "", "", "", "", ""]);
+    setOtpSent(false);
+    setResendTimer(30);
+    setShowResendButton(false);
   };
 
-  const validateOtp = (otpString: string): boolean => {
-    return otpString === HARDCODED_CREDENTIALS.otp;
-  };
+  // Cleanup sensitive data when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear any sensitive data when component is unmounted
+      setResetToken("");
+      setCurrentLoginField("");
+      // Clear OTP data for security
+      clearOtpData();
+    };
+  }, []);
+
+  // State for storing reset token for forgot password
+  const [resetToken, setResetToken] = useState<string>("");
+  
+  // State for storing current login field for resend OTP functionality
+  const [currentLoginField, setCurrentLoginField] = useState<string>("");
 
   const getPlaceholderText = (method: LoginMethodType): string => {
     switch (method) {
@@ -331,168 +365,315 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
     }
   };
 
-  // Handle login
-  const handleLogin = async (values: LoginFormValues, { setFieldError }: any) => {
+  // Handle login with real backend authentication
+  const handleLogin = async (values: LoginFormValues, { setStatus }: any) => {
     setIsLoading(true);
     setIsAuthenticationFailed(false);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      if (values.mode === "password") {
-        if (validateCredentials(loginMethod, values.loginField, values.password)) {
-          setIsVerified(true);
-          setIsAuthenticationFailed(false);
-          return;
-        } else {
-          setIsVerified(false);
-          setIsAuthenticationFailed(true);
-        }
-      } else if (values.mode === "otp") {
-        if (validateOtp(values.otp)) {
-          setIsVerified(true);
-          setIsAuthenticationFailed(false);
-          return;
-        } else {
-          setIsVerified(false);
-          setIsAuthenticationFailed(true);
-        }
+      // Call appropriate authentication method based on mode
+      if (values.mode === 'password') {
+        // Password-based authentication
+        const loginData = {
+          login_field: values.loginField.trim(),
+          login_method: loginMethod,
+          auth_mode: 'password' as const,
+          password: values.password
+        };
+        await authService.login(loginData);
+      } else {
+        // OTP-based authentication
+        const otpData = {
+          login_field: values.loginField.trim(),
+          login_method: loginMethod,
+          otp_code: values.otp
+        };
+        await authService.verifyLoginOTP(otpData);
       }
-    } catch (error) {
+      
+      // Login successful
+      setIsVerified(true);
+      setIsAuthenticationFailed(false);
+      
+      // Navigate to main app
+      onLogin();
+      
+    } catch (error: any) {
       console.error("Login error:", error);
-      setFieldError("general", "Login failed. Please try again.");
+      setIsVerified(false);
+      setIsAuthenticationFailed(true);
+      
+      // Set error message for display in form (like SignUp.tsx)
+      setStatus({
+        type: 'error',
+        message: error.message || "Login failed. Please try again."
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle send OTP
-  const handleSendOtp = async (values: LoginFormValues, { setFieldError, setFieldTouched, validateField }: any) => {
+  // Handle getting username OTP delivery options
+  const handleGetUsernameOTPOptions = async (username: string, { setStatus }: any) => {
+    setIsLoadingOTPOptions(true);
+    
+    try {
+      const response = await authService.getUsernameOTPOptions(username.trim());
+      setUsernameOTPOptions(response.options);
+      setCurrentUsername(username.trim());
+      setCurrentScreen("username_otp_choice");
+    } catch (error: any) {
+      setStatus({
+        type: 'error',
+        message: error.message || "Failed to get OTP options. Please try again."
+      });
+    } finally {
+      setIsLoadingOTPOptions(false);
+    }
+  };
+
+  // Handle send OTP with real backend
+  const handleSendOtp = async (values: LoginFormValues, { setStatus, setFieldTouched, validateField }: any) => {
     // First validate the login field before sending OTP
     setFieldTouched("loginField", true); // Mark field as touched to show errors
     
     // Trigger Formik validation first
     const validationResult = await validateField("loginField");
     if (validationResult) {
-      // There's a validation error from Formik
-      setFieldError("loginField", validationResult);
+      // There's a validation error from Formik - let Formik handle it
       return;
     }
-    
-    // Additional manual validation based on current login method
-    const loginField = values.loginField.trim();
-    let validationError = "";
-    
-    if (!loginField) {
-      validationError = "This field is required";
-    } else {
-      switch (loginMethod) {
-        case "phone":
-          if (!/^[6-9][0-9]{9}$/.test(loginField)) {
-            validationError = "Please enter a valid 10-digit phone number starting with 6-9";
-          }
-          break;
-        case "email":
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginField)) {
-            validationError = "Please enter a valid email address";
-          }
-          break;
-        case "username":
-          if (!/^[a-z][a-z0-9]*$/.test(loginField)) {
-            validationError = "Username must start with a lowercase letter and contain only lowercase letters and digits";
-          }
-          break;
-      }
-    }
-    
-    if (validationError) {
-      setFieldError("loginField", validationError);
+
+    // For username login with OTP mode, first get delivery options
+    if (loginMethod === "username" && values.mode === "otp") {
+      await handleGetUsernameOTPOptions(values.loginField, { setStatus });
       return;
     }
 
     setIsLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Send login OTP through backend
+      await authService.sendLoginOTP({
+        login_field: values.loginField.trim(),
+        login_method: loginMethod,
+        delivery_method: selectedDeliveryMethod || 'auto'
+      });
+      
+      // Store login field for resend functionality
+      setCurrentLoginField(values.loginField.trim());
+      
       setOtpSent(true);
-      setResendTimer(30);
+      setResendTimer(30); // Default to 30s
       setShowResendButton(false);
-    } catch (error) {
+      setLoginMode("otp"); // Ensure login mode is set to OTP
+      
+    } catch (error: any) {
       console.error("Send OTP error:", error);
-      setFieldError("general", "Failed to send OTP. Please try again.");
+      
+      // Set error message for display in form (like SignUp.tsx)
+      setStatus({
+        type: 'error',
+        message: error.message || "Failed to send OTP. Please try again."
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle resend OTP
+  // Handle send OTP after delivery method selection for username
+  const handleSendOtpWithDeliveryMethod = async (values: LoginFormValues, deliveryMethod: DeliveryMethodType, { setStatus }: any) => {
+    setIsLoading(true);
+
+    try {
+      await authService.sendLoginOTP({
+        login_field: values.loginField.trim(),
+        login_method: loginMethod,
+        delivery_method: deliveryMethod
+      });
+      
+      // Store login field for resend functionality
+      setCurrentLoginField(values.loginField.trim());
+      
+      setOtpSent(true);
+      setResendTimer(30);
+      setShowResendButton(false);
+      setLoginMode("otp"); // Ensure login mode is set to OTP
+      setCurrentScreen("login_form"); // Go back to login form with OTP sent
+      
+    } catch (error: any) {
+      console.error("Send OTP error:", error);
+      
+      setStatus({
+        type: 'error',
+        message: error.message || "Failed to send OTP. Please try again."
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle resend OTP with real backend
   const handleResendOtp = async () => {
     setIsResendLoading(true);
     setShowResendButton(false);
     setResendTimer(30);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Resend login OTP using stored login field
+      await authService.sendLoginOTP({
+        login_field: currentLoginField,
+        login_method: loginMethod
+      });
+      
       setOtpSent(true);
-    } catch (error) {
+      setResendTimer(30);
+    } catch (error: any) {
       console.error("Resend OTP error:", error);
+      // Handle error - could show a toast or alert
     } finally {
       setIsResendLoading(false);
     }
   };
 
-  // Handle forgot password
-  const handleForgotPassword = async (values: ForgotPasswordFormValues, { setFieldError }: any) => {
+  // Handle forgot password with real backend
+  const handleForgotPassword = async (values: ForgotPasswordFormValues, { setStatus }: any) => {
     setIsLoading(true);
     setIsAuthenticationFailed(false);
 
     try {
-      if (values.step === "send_otp") {
-        // Simulate sending OTP - always succeeds for demo purposes
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+      if (forgotPasswordStep === "send_otp") {
+        // For username, navigate to delivery method selection screen
+        if (loginMethod === "username") {
+          try {
+            const response = await authService.getUsernameOTPOptions(values.loginField.trim());
+            setUsernameOTPOptions(response.options);
+            setCurrentUsername(values.loginField.trim());
+            setCurrentScreen("forgot_password_otp_choice");
+            setIsLoading(false);
+            return;
+          } catch (error: any) {
+            throw new Error(error.message || "Failed to get delivery options for username");
+          }
+        }
+
+        // Send forgot password OTP through backend for phone/email
+        await authService.sendForgotPasswordOTP({
+          login_field: values.loginField.trim(),
+          login_method: loginMethod,
+          delivery_method: selectedDeliveryMethod || 'auto'
+        });
+        
         setOtpSent(true);
         setResendTimer(30);
         setShowResendButton(false);
-        return { step: "verify_otp" };
-      } else if (values.step === "verify_otp") {
-        if (validateOtp(values.otp)) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          setIsAuthenticationFailed(false);
-          return { step: "reset_password" };
-        } else {
-          setIsAuthenticationFailed(true);
-        }
-      } else if (values.step === "reset_password") {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        setForgotPasswordStep("verify_otp");
+        return;
+        
+      } else if (forgotPasswordStep === "verify_otp") {
+        // Verify OTP and get reset token
+        const response = await authService.verifyForgotPasswordOTP({
+          login_field: values.loginField.trim(),
+          login_method: loginMethod,
+          otp_code: values.otp
+        });
+        
+        // Store reset token for password reset step
+        setResetToken(response.reset_token);
+        setIsAuthenticationFailed(false);
+        setForgotPasswordStep("reset_password");
+        return;
+        
+      } else if (forgotPasswordStep === "reset_password") {
+        // Reset password with the token
+        await authService.confirmPasswordReset({
+          reset_token: resetToken,
+          new_password: values.newPassword,
+          confirm_password: values.confirmPassword
+        });
+        
+        // Reset form and go back to login
         setCurrentScreen("login_form");
         setOtpSent(false);
         setForgotPasswordOtp(["", "", "", "", "", ""]);
-        return { success: true };
+        setResetToken("");
+        setUsernameOTPOptions([]);
+        setSelectedDeliveryMethod(null);
+        setForgotPasswordStep("send_otp");
+        return;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Forgot password error:", error);
-      setFieldError("general", "Something went wrong. Please try again.");
+      setIsAuthenticationFailed(true);
+      
+      // Set error message for display in form (like SignUp.tsx)
+      setStatus({
+        type: 'error',
+        message: error.message || "Something went wrong. Please try again."
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle OTP input change - like AadharVerification
+  // Handle send forgot password OTP after delivery method selection for username
+  const handleSendForgotPasswordOtpWithDeliveryMethod = async (values: ForgotPasswordFormValues, deliveryMethod: DeliveryMethodType, { setStatus }: any) => {
+    setIsLoading(true);
+
+    try {
+      await authService.sendForgotPasswordOTP({
+        login_field: values.loginField.trim(),
+        login_method: loginMethod,
+        delivery_method: deliveryMethod
+      });
+      
+      setOtpSent(true);
+      setResendTimer(30);
+      setShowResendButton(false);
+      setForgotPasswordStep("verify_otp");
+      setCurrentScreen("forgot_password"); // Go back to forgot password form with OTP sent
+      
+    } catch (error: any) {
+      console.error("Send forgot password OTP error:", error);
+      
+      setStatus({
+        type: 'error',
+        message: error.message || "Failed to send OTP. Please try again."
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle OTP input change - Enhanced with better validation
   const handleOtpChange = (text: string, index: number, setFieldValue: any, isLogin: boolean = true) => {
-    if (text.length > 1) return;
+    // Only allow numeric input
+    if (text && !/^\d$/.test(text)) return;
+    
+    if (text.length > 1) return; // Only allow single digit
 
     const currentOtp = isLogin ? otp : forgotPasswordOtp;
     const setOtpState = isLogin ? setOtp : setForgotPasswordOtp;
     const inputRefs = isLogin ? otpInputRefs : forgotPasswordOtpInputRefs;
 
+    // Update OTP array
     const newOtp = [...currentOtp];
     newOtp[index] = text;
     setOtpState(newOtp);
 
-    setFieldValue("otp", newOtp.join(""));
+    // Update Formik field with joined OTP
+    const otpString = newOtp.join("");
+    setFieldValue("otp", otpString);
 
+    // Auto-focus next input
     if (text && index < 5) {
       inputRefs.current[index + 1]?.focus();
+    }
+    
+    // Auto-submit when OTP is complete (optional UX improvement)
+    if (otpString.length === 6 && isLogin) {
+      // Could auto-submit here, but let's keep manual submission for security
+      console.log("OTP Complete:", otpString);
     }
   };
 
@@ -510,8 +691,19 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
     const currentOtp = isLogin ? otp : forgotPasswordOtp;
     const inputRefs = isLogin ? otpInputRefs : forgotPasswordOtpInputRefs;
     
+    // Apply different container styles based on context
+    const containerStyle = isLogin 
+      ? styles.otpContainer 
+      : [styles.otpContainer, { 
+          maxWidth: 360, // Increase maxWidth for forgot password to accommodate compactFormContainer
+          position: "relative" as "relative",
+          right: 10,
+          paddingHorizontal: 0, // Remove existing padding to maximize space
+          marginHorizontal: 0 // Reset margins
+        }];
+    
     return (
-      <View style={styles.otpContainer}>
+      <View style={containerStyle}>
         {currentOtp.map((digit: string, index: number) => (
           <TextInput
             key={index}
@@ -549,6 +741,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
           onPress={() => {
             setMethodButtonPressed(null); // Reset immediately
             setLoginMethod("phone");
+            setLoginMode("password");
             setCurrentScreen("login_form");
           }}
           onPressIn={() => setMethodButtonPressed(0)}
@@ -573,6 +766,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
           style={styles.methodButton}
           onPress={() => {
             setLoginMethod("phone");
+            setLoginMode("password");
             setCurrentScreen("login_form");
           }}
         >
@@ -586,6 +780,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
           onPress={() => {
             setMethodButtonPressed(null); // Reset immediately
             setLoginMethod("email");
+            setLoginMode("password");
             setCurrentScreen("login_form");
           }}
           onPressIn={() => setMethodButtonPressed(1)}
@@ -610,6 +805,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
           style={styles.methodButton}
           onPress={() => {
             setLoginMethod("email");
+            setLoginMode("password");
             setCurrentScreen("login_form");
           }}
         >
@@ -623,6 +819,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
           onPress={() => {
             setMethodButtonPressed(null); // Reset immediately
             setLoginMethod("username");
+            setLoginMode("password");
             setCurrentScreen("login_form");
           }}
           onPressIn={() => setMethodButtonPressed(2)}
@@ -647,6 +844,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
           style={styles.methodButton}
           onPress={() => {
             setLoginMethod("username");
+            setLoginMode("password");
             setCurrentScreen("login_form");
           }}
         >
@@ -664,14 +862,23 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
         loginField: "",
         password: "",
         otp: "",
-        mode: "password" as LoginModeType,
+        mode: loginMode,
         method: loginMethod, // Add method for validation context
       }}
       validationSchema={loginValidationSchema}
       enableReinitialize={true} // This will update form when loginMethod changes
       onSubmit={handleLogin}
     >
-      {({ values, errors, touched, handleChange, handleBlur, handleSubmit, setFieldValue, setFieldError, validateField, setFieldTouched }: FormikProps<LoginFormValues>) => (
+      {({ values, errors, touched, status, handleChange, handleBlur, handleSubmit, setFieldValue, setStatus, validateField, setFieldTouched }: FormikProps<LoginFormValues>) => {
+        
+        // Clear any error status when user starts typing (like SignUp.tsx)
+        const clearErrorStatus = () => {
+          if (status && status.type === 'error') {
+            setStatus(null);
+          }
+        };
+
+        return (
         <View style={styles.formContainer}>
           
           {/* Login Field Input - Only show when not in OTP mode or OTP not sent */}
@@ -685,7 +892,10 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
                 placeholder={getPlaceholderText(loginMethod)}
                 placeholderTextColor="#6B7280"
                 value={values.loginField}
-                onChangeText={handleChange("loginField")}
+                onChangeText={(text) => {
+                  handleChange("loginField")(text);
+                  clearErrorStatus();
+                }}
                 onBlur={handleBlur("loginField")}
                 keyboardType={getKeyboardType(loginMethod)}
                 autoCapitalize="none"
@@ -709,7 +919,10 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
                   placeholder="Password"
                   placeholderTextColor="#6B7280"
                   value={values.password}
-                  onChangeText={handleChange("password")}
+                  onChangeText={(text) => {
+                    handleChange("password")(text);
+                    clearErrorStatus();
+                  }}
                   onBlur={handleBlur("password")}
                   secureTextEntry={!showPassword}
                 />
@@ -735,7 +948,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
                 /* Send OTP Button */
                 colorScheme === "light" ? (
                   <Pressable
-                    onPress={() => handleSendOtp(values, { setFieldError, setFieldTouched, validateField })}
+                    onPress={() => handleSendOtp(values, { setStatus, setFieldTouched, validateField })}
                     onPressIn={() => setSendOtpButtonPressed(true)}
                     onPressOut={() => setSendOtpButtonPressed(false)}
                     disabled={isLoading}
@@ -758,7 +971,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
                 ) : (
                   <TouchableOpacity
                     style={[styles.loginButton, isLoading && { opacity: 0.6 }]}
-                    onPress={() => handleSendOtp(values, { setFieldError, setFieldTouched, validateField })}
+                    onPress={() => handleSendOtp(values, { setStatus, setFieldTouched, validateField })}
                     disabled={isLoading}
                   >
                     <Text style={styles.loginButtonText}>
@@ -831,6 +1044,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
                     style={styles.actionLinkButton}
                     onPress={() => {
                       setCurrentScreen("forgot_password");
+                      setForgotPasswordStep("send_otp");
                       setIsAuthenticationFailed(false);
                     }}
                   >
@@ -842,12 +1056,10 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
                 <TouchableOpacity
                   style={styles.actionLinkButton}
                   onPress={() => {
-                    setFieldValue("mode", values.mode === "password" ? "otp" : "password");
-                    setOtpSent(false);
-                    setResendTimer(30);
-                    setShowResendButton(false);
-                    setOtp(["", "", "", "", "", ""]);
-                    setFieldValue("otp", "");
+                    const newMode = values.mode === "password" ? "otp" : "password";
+                    setFieldValue("mode", newMode);
+                    setLoginMode(newMode);
+                    clearOtpData();
                     setIsAuthenticationFailed(false);
                   }}
                 >
@@ -861,8 +1073,8 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
                   style={styles.actionLinkButton}
                   onPress={() => {
                     setCurrentScreen("method_selection");
-                    setOtp(["", "", "", "", "", ""]);
-                    setOtpSent(false);
+                    setLoginMode("password");
+                    clearOtpData();
                     setIsAuthenticationFailed(false);
                   }}
                 >
@@ -901,11 +1113,11 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
           )}
 
           {/* Error Messages */}
-          {errors.general && (
+          {status && status.type === 'error' && (
             <View style={styles.statusContainer}>
               <View style={styles.errorStatus}>
                 <Ionicons name="close-circle" size={24} color="#EF4444" />
-                <Text style={styles.errorText}>{errors.general}</Text>
+                <Text style={styles.backendErrorText}>{status.message}</Text>
               </View>
             </View>
           )}
@@ -937,7 +1149,8 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
             </View>
           )}
         </View>
-      )}
+        );
+      }}
     </Formik>
   );
 
@@ -955,7 +1168,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
       validationSchema={forgotPasswordValidationSchema}
       validateOnChange={false}
       validateOnBlur={false}
-      onSubmit={async (values, { setFieldError, setFieldValue, validateForm }) => {
+      onSubmit={async (values, { setStatus, setFieldValue, validateForm }) => {
         // Manually validate the form before submission
         const errors = await validateForm(values);
         
@@ -965,25 +1178,23 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
           return; // Stop submission if there are validation errors
         }
         
-        const result = await handleForgotPassword(values, { setFieldError });
-        if (result?.step) {
-          setFieldValue("step", result.step);
-        }
-        if (result?.success) {
-          // Reset form and go back to login
-          setFieldValue("loginField", "");
-          setFieldValue("otp", "");
-          setFieldValue("newPassword", "");
-          setFieldValue("confirmPassword", "");
-          setFieldValue("step", "send_otp");
-        }
+        await handleForgotPassword(values, { setStatus });
       }}
     >
-      {({ values, errors, touched, handleChange, handleBlur, handleSubmit, setFieldValue }: FormikProps<ForgotPasswordFormValues>) => (
-        <View style={styles.formContainer}>
+      {({ values, errors, touched, status, handleChange, handleBlur, handleSubmit, setFieldValue, setStatus }: FormikProps<ForgotPasswordFormValues>) => {
+        
+        // Clear any error status when user starts typing (like SignUp.tsx)
+        const clearErrorStatus = () => {
+          if (status && status.type === 'error') {
+            setStatus(null);
+          }
+        };
+
+        return (
+        <View style={[styles.formContainer, styles.compactFormContainer]}>
           <Text style={styles.forgotTitle}>Reset Password</Text>
           
-          {values.step === "send_otp" && (
+          {forgotPasswordStep === "send_otp" && (
             <>
               <Text style={styles.forgotSubtitle}>
                 Enter your {loginMethod} to receive a reset code
@@ -997,7 +1208,15 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
                 placeholder={getPlaceholderText(loginMethod)}
                 placeholderTextColor="#6B7280"
                 value={values.loginField}
-                onChangeText={handleChange("loginField")}
+                onChangeText={(text) => {
+                  handleChange("loginField")(text);
+                  clearErrorStatus();
+                  // Reset delivery options when input changes
+                  if (loginMethod === "username") {
+                    setUsernameOTPOptions([]);
+                    setSelectedDeliveryMethod(null);
+                  }
+                }}
                 onBlur={handleBlur("loginField")}
                 keyboardType={getKeyboardType(loginMethod)}
                 autoCapitalize="none"
@@ -1009,7 +1228,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
             </>
           )}
 
-          {values.step === "verify_otp" && (
+          {forgotPasswordStep === "verify_otp" && (
             <>
               <Text style={styles.forgotSubtitle}>
                 Enter the verification code sent to your {loginMethod}
@@ -1024,7 +1243,7 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
             </>
           )}
 
-          {values.step === "reset_password" && (
+          {forgotPasswordStep === "reset_password" && (
             <>
               <Text style={styles.forgotSubtitle}>
                 Create a new password for your account
@@ -1039,7 +1258,10 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
                   placeholder="New Password"
                   placeholderTextColor="#6B7280"
                   value={values.newPassword}
-                  onChangeText={handleChange("newPassword")}
+                  onChangeText={(text) => {
+                    handleChange("newPassword")(text);
+                    clearErrorStatus();
+                  }}
                   onBlur={handleBlur("newPassword")}
                   secureTextEntry={!showNewPassword}
                 />
@@ -1065,7 +1287,10 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
                   placeholder="Confirm Password"
                   placeholderTextColor="#6B7280"
                   value={values.confirmPassword}
-                  onChangeText={handleChange("confirmPassword")}
+                  onChangeText={(text) => {
+                    handleChange("confirmPassword")(text);
+                    clearErrorStatus();
+                  }}
                   onBlur={handleBlur("confirmPassword")}
                   secureTextEntry={!showConfirmPassword}
                 />
@@ -1085,50 +1310,55 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
           )}
 
           {/* Submit Button */}
-          {colorScheme === "light" ? (
-            <Pressable
-              onPress={() => handleSubmit()}
-              onPressIn={() => setForgotPasswordButtonPressed(true)}
-              onPressOut={() => setForgotPasswordButtonPressed(false)}
-              disabled={isLoading}
-            >
-              <LinearGradient
-                colors={
-                  forgotPasswordButtonPressed
-                    ? ["#1691A8", "#083A73"]
-                    : ["#1CA8C9", "#0A4C8B"]
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.loginButton, isLoading && { opacity: 0.6 }]}
+          {(() => {
+            // Button is only disabled when loading
+            const buttonDisabled = isLoading;
+
+            return colorScheme === "light" ? (
+              <Pressable
+                onPress={() => handleSubmit()}
+                onPressIn={() => setForgotPasswordButtonPressed(true)}
+                onPressOut={() => setForgotPasswordButtonPressed(false)}
+                disabled={buttonDisabled}
+              >
+                <LinearGradient
+                  colors={
+                    forgotPasswordButtonPressed
+                      ? ["#1691A8", "#083A73"]
+                      : ["#1CA8C9", "#0A4C8B"]
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.loginButton, buttonDisabled && { opacity: 0.6 }]}
+                >
+                  <Text style={styles.loginButtonText}>
+                    {isLoading ? "Processing..." : 
+                      forgotPasswordStep === "send_otp" ? "Send OTP" :
+                      forgotPasswordStep === "verify_otp" ? "Verify OTP" :
+                      "Reset Password"
+                    }
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+            ) : (
+              <TouchableOpacity
+                style={[styles.loginButton, buttonDisabled && { opacity: 0.6 }]}
+                onPress={() => handleSubmit()}
+                disabled={buttonDisabled}
               >
                 <Text style={styles.loginButtonText}>
                   {isLoading ? "Processing..." : 
-                    values.step === "send_otp" ? "Send OTP" :
-                    values.step === "verify_otp" ? "Verify OTP" :
+                    forgotPasswordStep === "send_otp" ? "Send OTP" :
+                    forgotPasswordStep === "verify_otp" ? "Verify OTP" :
                     "Reset Password"
                   }
                 </Text>
-              </LinearGradient>
-            </Pressable>
-          ) : (
-            <TouchableOpacity
-              style={[styles.loginButton, isLoading && { opacity: 0.6 }]}
-              onPress={() => handleSubmit()}
-              disabled={isLoading}
-            >
-              <Text style={styles.loginButtonText}>
-                {isLoading ? "Processing..." : 
-                  values.step === "send_otp" ? "Send OTP" :
-                  values.step === "verify_otp" ? "Verify OTP" :
-                  "Reset Password"
-                }
-              </Text>
-            </TouchableOpacity>
-          )}
+              </TouchableOpacity>
+            );
+          })()}
 
           {/* Action Links for Forgot Password */}
-          <View style={styles.actionLinksContainer}>
+          <View style={styles.compactActionLinks}>
             <View style={styles.actionLinksRow}>
               {/* Back to Login */}
               <TouchableOpacity
@@ -1138,13 +1368,16 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
                   setForgotPasswordOtp(["", "", "", "", "", ""]);
                   setOtpSent(false);
                   setIsAuthenticationFailed(false);
+                  setUsernameOTPOptions([]);
+                  setSelectedDeliveryMethod(null);
+                  setForgotPasswordStep("send_otp");
                 }}
               >
                 <Text style={styles.actionLinkText}>Back to Login</Text>
               </TouchableOpacity>
 
               {/* Resend OTP - Only show in verify_otp step when OTP is sent */}
-              {values.step === "verify_otp" && otpSent && (
+              {forgotPasswordStep === "verify_otp" && otpSent && (
                 showResendButton ? (
                   <TouchableOpacity
                     style={styles.actionLinkButton}
@@ -1167,11 +1400,11 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
           </View>
 
           {/* Error Messages */}
-          {errors.general && (
+          {status && status.type === 'error' && (
             <View style={styles.statusContainer}>
               <View style={styles.errorStatus}>
                 <Ionicons name="close-circle" size={24} color="#EF4444" />
-                <Text style={styles.errorText}>{errors.general}</Text>
+                <Text style={styles.backendErrorText}>{status.message}</Text>
               </View>
             </View>
           )}
@@ -1203,8 +1436,236 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
             </View>
           )}
         </View>
-      )}
+        );
+      }}
     </Formik>
+  );
+
+  // Render username OTP delivery choice screen  
+  const renderUsernameOTPChoice = () => (
+    <View style={[styles.formContainer, styles.compactFormContainer]}>
+      {/* Title */}
+      <Text style={styles.alternativeTitle}>Choose OTP Delivery Method</Text>
+      <Text style={styles.subtitle}>
+        Select how you&apos;d like to receive your verification code
+      </Text>
+
+      {/* Delivery Options */}
+      {isLoadingOTPOptions ? (
+        <Text style={styles.subtitle}>Loading options...</Text>
+      ) : (
+        <>
+          <View style={styles.compactAlternativeContainer}>
+            {usernameOTPOptions.map((option, index) => (
+            <TouchableOpacity
+              key={option.method}
+              style={[
+                styles.methodOption,
+                styles.compactMethodOption,
+                selectedDeliveryMethod === option.method && styles.methodOptionSelected
+              ]}
+              onPress={() => setSelectedDeliveryMethod(option.method as DeliveryMethodType)}
+            >
+              <Ionicons 
+                name={option.method === 'email' ? 'mail' : 'phone-portrait'} 
+                size={20} 
+                color={selectedDeliveryMethod === option.method ? "#3B82F6" : (colorScheme === "dark" ? "#FFFFFF" : "#000000")}
+              />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={[styles.methodOptionText, styles.compactMethodOptionText]}>
+                  {option.display}
+                </Text>
+                <Text style={[styles.forgotSubtitle, styles.compactDestinationText]}>
+                  {option.destination}
+                </Text>
+              </View>
+              {selectedDeliveryMethod === option.method && (
+                <Ionicons name="checkmark-circle" size={20} color="#3B82F6" />
+              )}
+            </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Send OTP Button */}
+          {selectedDeliveryMethod && (
+            colorScheme === "light" ? (
+              <Pressable
+                onPress={() => {
+                  handleSendOtpWithDeliveryMethod(
+                    { loginField: currentUsername, password: '', otp: '', mode: 'otp', method: 'username' },
+                    selectedDeliveryMethod,
+                    { setStatus: () => {} }
+                  );
+                }}
+                onPressIn={() => setLoginButtonPressed(true)}
+                onPressOut={() => setLoginButtonPressed(false)}
+                disabled={isLoading}
+              >
+                <LinearGradient
+                  colors={
+                    loginButtonPressed
+                      ? ["#1691A8", "#083A73"]
+                      : ["#1CA8C9", "#0A4C8B"]
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.loginButton, isLoading && { opacity: 0.6 }]}
+                >
+                  <Text style={styles.loginButtonText}>
+                    {isLoading ? "Sending..." : "Send OTP"}
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.loginButton,
+                  isLoading && { opacity: 0.6 }
+                ]}
+                disabled={isLoading}
+                onPress={() => {
+                  handleSendOtpWithDeliveryMethod(
+                    { loginField: currentUsername, password: '', otp: '', mode: 'otp', method: 'username' },
+                    selectedDeliveryMethod,
+                    { setStatus: () => {} }
+                  );
+                }}
+              >
+                <Text style={styles.loginButtonText}>
+                  {isLoading ? "Sending..." : "Send OTP"}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
+
+          {/* Back to Login */}
+          <TouchableOpacity
+            style={styles.compactActionLinks}
+            onPress={() => {
+              setCurrentScreen("login_form");
+              setUsernameOTPOptions([]);
+              setSelectedDeliveryMethod(null);
+            }}
+          >
+            <Text style={styles.alternativeLinkText}>← Back to Login</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  );
+
+  // Render forgot password OTP delivery choice screen  
+  const renderForgotPasswordOTPChoice = () => (
+    <View style={[styles.formContainer, styles.compactFormContainer]}>
+      {/* Title */}
+      <Text style={styles.alternativeTitle}>Choose OTP Delivery Method</Text>
+      <Text style={styles.subtitle}>
+        Select how you&apos;d like to receive your reset code
+      </Text>
+
+      {/* Delivery Options */}
+      {isLoadingOTPOptions ? (
+        <Text style={styles.subtitle}>Loading options...</Text>
+      ) : (
+        <>
+          <View style={styles.compactAlternativeContainer}>
+            {usernameOTPOptions.map((option, index) => (
+            <TouchableOpacity
+              key={option.method}
+              style={[
+                styles.methodOption,
+                styles.compactMethodOption,
+                selectedDeliveryMethod === option.method && styles.methodOptionSelected
+              ]}
+              onPress={() => setSelectedDeliveryMethod(option.method as DeliveryMethodType)}
+            >
+              <Ionicons 
+                name={option.method === 'email' ? 'mail' : 'phone-portrait'} 
+                size={20} 
+                color={selectedDeliveryMethod === option.method ? "#3B82F6" : (colorScheme === "dark" ? "#FFFFFF" : "#000000")}
+              />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={[styles.methodOptionText, styles.compactMethodOptionText]}>
+                  {option.display}
+                </Text>
+                <Text style={[styles.forgotSubtitle, styles.compactDestinationText]}>
+                  {option.destination}
+                </Text>
+              </View>
+              {selectedDeliveryMethod === option.method && (
+                <Ionicons name="checkmark-circle" size={20} color="#3B82F6" />
+              )}
+            </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Send OTP Button */}
+          {selectedDeliveryMethod && (
+            colorScheme === "light" ? (
+              <Pressable
+                onPress={() => {
+                  handleSendForgotPasswordOtpWithDeliveryMethod(
+                    { loginField: currentUsername, otp: '', newPassword: '', confirmPassword: '', step: 'send_otp', method: 'username' },
+                    selectedDeliveryMethod,
+                    { setStatus: () => {} }
+                  );
+                }}
+                onPressIn={() => setLoginButtonPressed(true)}
+                onPressOut={() => setLoginButtonPressed(false)}
+                disabled={isLoading}
+              >
+                <LinearGradient
+                  colors={
+                    loginButtonPressed
+                      ? ["#1691A8", "#083A73"]
+                      : ["#1CA8C9", "#0A4C8B"]
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.loginButton, isLoading && { opacity: 0.6 }]}
+                >
+                  <Text style={styles.loginButtonText}>
+                    {isLoading ? "Sending..." : "Send Reset Code"}
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.loginButton,
+                  isLoading && { opacity: 0.6 }
+                ]}
+                disabled={isLoading}
+                onPress={() => {
+                  handleSendForgotPasswordOtpWithDeliveryMethod(
+                    { loginField: currentUsername, otp: '', newPassword: '', confirmPassword: '', step: 'send_otp', method: 'username' },
+                    selectedDeliveryMethod,
+                    { setStatus: () => {} }
+                  );
+                }}
+              >
+                <Text style={styles.loginButtonText}>
+                  {isLoading ? "Sending..." : "Send Reset Code"}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
+
+          {/* Back to Forgot Password */}
+          <TouchableOpacity
+            style={styles.compactActionLinks}
+            onPress={() => {
+              setCurrentScreen("forgot_password");
+              setUsernameOTPOptions([]);
+              setSelectedDeliveryMethod(null);
+              setForgotPasswordStep("send_otp");
+            }}
+          >
+            <Text style={styles.alternativeLinkText}>← Back to Reset Password</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
   );
 
   return (
@@ -1265,8 +1726,8 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
         {currentScreen === "method_selection" && renderMethodSelection()}
         {currentScreen === "login_form" && renderLoginForm()}
         {currentScreen === "forgot_password" && renderForgotPassword()}
-
-
+        {currentScreen === "username_otp_choice" && renderUsernameOTPChoice()}
+        {currentScreen === "forgot_password_otp_choice" && renderForgotPasswordOTPChoice()}
       </Animated.View>
     </ImageBackground>
   );

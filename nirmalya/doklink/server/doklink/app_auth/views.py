@@ -12,8 +12,10 @@ from django.core.mail import send_mail
 from django.conf import settings
 from .models import UserProfile, OTPVerification, LoginAudit
 from .serializers import UserSignUpSerializer, UserSerializer, LoginSerializer
+from .otp_service import OTPService
 import random
 import string
+from datetime import timedelta
 
 
 def get_client_ip(request):
@@ -585,4 +587,487 @@ def generate_cloudinary_signature(request):
             'success': False,
             'error': 'Failed to generate signature',
             'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def get_username_otp_options(request):
+    """Get available OTP delivery options for username login"""
+    username = request.data.get('username')
+    
+    if not username:
+        return Response({
+            'error': 'Username is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(username=username.lower())
+        
+        if not user.is_active:
+            return Response({
+                'error': 'Account is disabled'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get user's available contact methods
+        options = []
+        
+        # Email option (always available)
+        if user.email:
+            options.append({
+                'method': 'email',
+                'display': 'Email',
+                'destination': OTPService.mask_email(user.email),
+                'description': 'Send OTP to your registered email'
+            })
+        
+        # Phone option (if phone number exists)
+        try:
+            if hasattr(user, 'profile') and user.profile.phone_number:
+                options.append({
+                    'method': 'sms',
+                    'display': 'SMS',
+                    'destination': OTPService.mask_phone(str(user.profile.phone_number)),
+                    'description': 'Send OTP to your registered phone number'
+                })
+        except (UserProfile.DoesNotExist, AttributeError):
+            pass
+        
+        if not options:
+            return Response({
+                'error': 'No contact methods available for this account'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            'username': username,
+            'options': options,
+            'message': 'Select your preferred method to receive OTP'
+        }, status=status.HTTP_200_OK)
+        
+    except User.DoesNotExist:
+        return Response({
+            'error': 'No account found with this username'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        print(f"Error getting username OTP options: {e}")
+        return Response({
+            'error': 'Failed to get OTP options. Please try again.'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def send_login_otp(request):
+    """Enhanced OTP sending for login authentication with delivery method selection"""
+    login_field = request.data.get('login_field')
+    login_method = request.data.get('login_method')
+    delivery_method = request.data.get('delivery_method', 'auto')  # New parameter
+    
+    if not login_field or not login_method:
+        return Response({
+            'error': 'login_field and login_method are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Find user based on login method
+    user = None
+    try:
+        if login_method == 'email':
+            user = User.objects.get(email=login_field.lower())
+            delivery_method = 'email'  # Force email for email login
+        elif login_method == 'phone':
+            # Normalize phone number
+            normalized_phone = login_field
+            if login_field.startswith('+91'):
+                normalized_phone = login_field[3:]
+            elif login_field.startswith('91'):
+                normalized_phone = login_field[2:]
+            
+            profile = UserProfile.objects.get(phone_number__endswith=normalized_phone)
+            user = profile.user
+            delivery_method = 'sms'  # Force SMS for phone login
+        elif login_method == 'username':
+            user = User.objects.get(username=login_field.lower())
+            # For username, delivery_method should be provided from frontend
+            if delivery_method == 'auto':
+                return Response({
+                    'error': 'Please specify delivery_method for username login'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({
+                'error': 'Invalid login method'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except (User.DoesNotExist, UserProfile.DoesNotExist):
+        return Response({
+            'error': f'No account found with this {login_method}'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    if not user.is_active:
+        return Response({
+            'error': 'Account is disabled'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        # Use the new OTP service
+        success, message = OTPService.send_otp(
+            user=user,
+            otp_type='login_2fa',
+            delivery_method=delivery_method,
+            phone_number=str(user.profile.phone_number) if hasattr(user, 'profile') else None,
+            email_subject="Login OTP"
+        )
+        
+        if success:
+            return Response({
+                'message': message,
+                'delivery_method': delivery_method
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'error': message
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    except Exception as e:
+        print(f"Error sending login OTP: {e}")
+        return Response({
+            'error': 'Failed to send OTP. Please try again.'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def send_forgot_password_otp(request):
+    """Enhanced password reset OTP with delivery method selection"""
+    login_field = request.data.get('login_field')
+    login_method = request.data.get('login_method')
+    delivery_method = request.data.get('delivery_method', 'auto')
+    
+    if not login_field or not login_method:
+        return Response({
+            'error': 'login_field and login_method are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Find user based on login method
+    user = None
+    try:
+        if login_method == 'email':
+            user = User.objects.get(email=login_field.lower())
+            delivery_method = 'email'  # Force email for email-based reset
+        elif login_method == 'phone':
+            # Normalize phone number
+            normalized_phone = login_field
+            if login_field.startswith('+91'):
+                normalized_phone = login_field[3:]
+            elif login_field.startswith('91'):
+                normalized_phone = login_field[2:]
+            
+            profile = UserProfile.objects.get(phone_number__endswith=normalized_phone)
+            user = profile.user
+            delivery_method = 'sms'  # Force SMS for phone-based reset
+        elif login_method == 'username':
+            user = User.objects.get(username=login_field.lower())
+            # For username, delivery_method should be provided from frontend
+            if delivery_method == 'auto':
+                return Response({
+                    'error': 'Please specify delivery_method for username-based reset'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({
+                'error': 'Invalid login method'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except (User.DoesNotExist, UserProfile.DoesNotExist):
+        return Response({
+            'error': f'No account found with this {login_method}'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    if not user.is_active:
+        return Response({
+            'error': 'Account is disabled'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        # Use the new OTP service
+        success, message = OTPService.send_otp(
+            user=user,
+            otp_type='password_reset',
+            delivery_method=delivery_method,
+            phone_number=str(user.profile.phone_number) if hasattr(user, 'profile') else None,
+            email_subject="Password Reset OTP"
+        )
+        
+        if success:
+            return Response({
+                'message': message,
+                'delivery_method': delivery_method
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'error': message
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    except Exception as e:
+        print(f"Error sending forgot password OTP: {e}")
+        return Response({
+            'error': 'Failed to send OTP. Please try again.'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def verify_forgot_password_otp(request):
+    """Verify OTP for password reset using enhanced OTP service"""
+    login_field = request.data.get('login_field')
+    login_method = request.data.get('login_method')
+    otp_code = request.data.get('otp')
+    
+    if not all([login_field, login_method, otp_code]):
+        return Response({
+            'error': 'login_field, login_method, and otp are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Find user based on login method
+    user = None
+    try:
+        if login_method == 'email':
+            user = User.objects.get(email=login_field.lower())
+        elif login_method == 'phone':
+            normalized_phone = login_field
+            if login_field.startswith('+91'):
+                normalized_phone = login_field[3:]
+            elif login_field.startswith('91'):
+                normalized_phone = login_field[2:]
+            
+            profile = UserProfile.objects.get(phone_number__endswith=normalized_phone)
+            user = profile.user
+        elif login_method == 'username':
+            user = User.objects.get(username=login_field.lower())
+            
+    except (User.DoesNotExist, UserProfile.DoesNotExist):
+        return Response({
+            'error': f'No account found with this {login_method}'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    try:
+        # Use the new OTP service for verification
+        success, message = OTPService.verify_otp(user, otp_code, 'password_reset')
+        
+        if success:
+            return Response({
+                'message': message + ' You can now reset your password.',
+                'verified': True
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'error': message,
+                'verified': False
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+    except Exception as e:
+        print(f"Error verifying forgot password OTP: {e}")
+        return Response({
+            'error': 'OTP verification failed'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def confirm_password_reset(request):
+    """Reset password after OTP verification"""
+    login_field = request.data.get('login_field')
+    login_method = request.data.get('login_method')
+    new_password = request.data.get('new_password')
+    
+    if not all([login_field, login_method, new_password]):
+        return Response({
+            'error': 'login_field, login_method, and new_password are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Find user based on login method
+    user = None
+    try:
+        if login_method == 'email':
+            user = User.objects.get(email=login_field.lower())
+        elif login_method == 'phone':
+            normalized_phone = login_field
+            if login_field.startswith('+91'):
+                normalized_phone = login_field[3:]
+            elif login_field.startswith('91'):
+                normalized_phone = login_field[2:]
+            
+            profile = UserProfile.objects.get(phone_number__endswith=normalized_phone)
+            user = profile.user
+        elif login_method == 'username':
+            user = User.objects.get(username=login_field.lower())
+            
+    except (User.DoesNotExist, UserProfile.DoesNotExist):
+        return Response({
+            'error': f'No account found with this {login_method}'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Validate new password
+    try:
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+        
+        validate_password(new_password, user)
+    except ValidationError as e:
+        return Response({
+            'error': list(e.messages)
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if there's a recent used password reset OTP for this user
+    recent_otp = OTPVerification.objects.filter(
+        user=user,
+        otp_type='password_reset',
+        is_used=True,
+        created_at__gte=timezone.now() - timedelta(minutes=15)  # Allow reset within 15 minutes of OTP verification
+    ).order_by('-created_at').first()
+    
+    if not recent_otp:
+        return Response({
+            'error': 'No recent OTP verification found. Please verify OTP first.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Update password
+    user.set_password(new_password)
+    user.save()
+    
+    # Log successful password reset
+    LoginAudit.log_attempt(
+        email=user.email,
+        status='password_reset',
+        ip_address=get_client_ip(request),
+        user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        user=user
+    )
+    
+    return Response({
+        'message': 'Password reset successfully. You can now login with your new password.'
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def verify_login_otp(request):
+    """Verify OTP and login user"""
+    login_field = request.data.get('login_field')
+    login_method = request.data.get('login_method')
+    otp_code = request.data.get('otp_code')
+    
+    # Get client information for audit
+    ip_address = get_client_ip(request)
+    user_agent = request.META.get('HTTP_USER_AGENT', '')
+    
+    if not all([login_field, login_method, otp_code]):
+        return Response({
+            'error': 'login_field, login_method, and otp_code are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Find user based on login method
+    user = None
+    try:
+        if login_method == 'email':
+            user = User.objects.get(email=login_field.lower())
+        elif login_method == 'phone':
+            # Normalize phone number
+            normalized_phone = login_field
+            if login_field.startswith('+91'):
+                normalized_phone = login_field[3:]
+            elif login_field.startswith('91'):
+                normalized_phone = login_field[2:]
+            
+            profile = UserProfile.objects.get(phone_number__endswith=normalized_phone)
+            user = profile.user
+        elif login_method == 'username':
+            user = User.objects.get(username=login_field.lower())
+        else:
+            return Response({
+                'error': 'Invalid login method'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except (User.DoesNotExist, UserProfile.DoesNotExist):
+        # Log failed attempt
+        LoginAudit.log_attempt(
+            email=login_field,
+            status='failed_user',
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        return Response({
+            'error': f'No account found with this {login_method}'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    if not user.is_active:
+        # Log failed attempt
+        LoginAudit.log_attempt(
+            email=user.email,
+            status='failed_locked',
+            ip_address=ip_address,
+            user_agent=user_agent,
+            user=user
+        )
+        return Response({
+            'error': 'Account is disabled'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        # Verify OTP using OTP service
+        success, message = OTPService.verify_otp(user, otp_code, 'login_2fa')
+        
+        if success:
+            # Generate tokens
+            tokens = get_tokens_for_user(user)
+            
+            # Get the OTP record for audit logging
+            otp_record = OTPVerification.objects.filter(
+                user=user,
+                otp_type='login_2fa',
+                otp_code=otp_code,
+                is_used=True
+            ).order_by('-created_at').first()
+            
+            # Log successful login
+            LoginAudit.log_attempt(
+                email=user.email,
+                status='success',
+                ip_address=ip_address,
+                user_agent=user_agent,
+                user=user,
+                otp_used=otp_record
+            )
+            
+            # Serialize user data
+            user_serializer = UserSerializer(user)
+            
+            return Response({
+                'message': 'Login successful',
+                'user': user_serializer.data,
+                'tokens': tokens
+            }, status=status.HTTP_200_OK)
+        else:
+            # Log failed OTP attempt
+            LoginAudit.log_attempt(
+                email=user.email,
+                status='failed_otp',
+                ip_address=ip_address,
+                user_agent=user_agent,
+                user=user
+            )
+            return Response({
+                'error': message
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+    except Exception as e:
+        print(f"Error verifying login OTP: {e}")
+        # Log failed attempt
+        LoginAudit.log_attempt(
+            email=user.email,
+            status='failed_otp',
+            ip_address=ip_address,
+            user_agent=user_agent,
+            user=user
+        )
+        return Response({
+            'error': 'OTP verification failed. Please try again.'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -2,14 +2,18 @@
 import apiClient, { 
   SignUpRequest, 
   SignUpResponse, 
-  LoginRequest, 
   LoginResponse,
   OTPRequest,
   OTPResponse,
   VerificationStatus,
   User,
   INDIAN_STATES,
-  API_ENDPOINTS 
+  API_ENDPOINTS,
+  UsernameOTPOptionsResponse,
+  LoginOTPRequest,
+  LoginOTPResponse,
+  ForgotPasswordOTPRequest,
+  ForgotPasswordOTPResponse
 } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -123,8 +127,14 @@ class AuthService {
     }
   }
 
-  // Login user
-  async login(loginData: LoginRequest): Promise<LoginResponse> {
+  // Login user with enhanced authentication (phone/email/username + password/OTP)
+  async login(loginData: {
+    login_field: string;
+    login_method: 'phone' | 'email' | 'username';
+    auth_mode: 'password' | 'otp';
+    password?: string;
+    otp_code?: string;
+  }): Promise<LoginResponse> {
     try {
       const response = await apiClient.post(API_ENDPOINTS.LOGIN, loginData);
       
@@ -140,6 +150,26 @@ class AuthService {
       
       if (error.response?.data) {
         const errorData = error.response.data;
+        
+        // Handle specific authentication errors
+        if (errorData.non_field_errors) {
+          throw new Error(Array.isArray(errorData.non_field_errors) 
+            ? errorData.non_field_errors.join(', ') 
+            : errorData.non_field_errors);
+        }
+        
+        if (errorData.login_field) {
+          throw new Error(Array.isArray(errorData.login_field) 
+            ? errorData.login_field.join(', ') 
+            : errorData.login_field);
+        }
+
+        if (errorData.otp_code) {
+          throw new Error(Array.isArray(errorData.otp_code) 
+            ? errorData.otp_code.join(', ') 
+            : errorData.otp_code);
+        }
+        
         throw new Error(errorData.error || errorData.message || 'Login failed');
       }
       
@@ -279,18 +309,228 @@ class AuthService {
     }
   }
 
-  // Confirm password reset
-  async confirmPasswordReset(data: { 
-    email: string; 
-    reset_token: string; 
-    new_password: string; 
+  // Get OTP delivery options for username login
+  async getUsernameOTPOptions(username: string): Promise<UsernameOTPOptionsResponse> {
+    try {
+      const response = await apiClient.post(API_ENDPOINTS.GET_USERNAME_OTP_OPTIONS, { username });
+      return response.data as UsernameOTPOptionsResponse;
+    } catch (error: any) {
+      console.error('Get Username OTP Options Error:', error);
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        throw new Error(errorData.error || errorData.message || 'Failed to get OTP options');
+      }
+      
+      throw new Error(error.message || 'Failed to get OTP options. Please try again.');
+    }
+  }
+
+  // Send login OTP for authentication (Enhanced version)
+  async sendLoginOTP(data: LoginOTPRequest): Promise<LoginOTPResponse> {
+    try {
+      const response = await apiClient.post(API_ENDPOINTS.SEND_LOGIN_OTP, data);
+      return response.data as LoginOTPResponse;
+    } catch (error: any) {
+      console.error('Send Login OTP Error:', error);
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        if (errorData.non_field_errors) {
+          throw new Error(Array.isArray(errorData.non_field_errors) 
+            ? errorData.non_field_errors.join(', ') 
+            : errorData.non_field_errors);
+        }
+        
+        if (errorData.login_field) {
+          throw new Error(Array.isArray(errorData.login_field) 
+            ? errorData.login_field.join(', ') 
+            : errorData.login_field);
+        }
+        
+        throw new Error(errorData.error || errorData.message || 'Failed to send login OTP');
+      }
+      
+      throw new Error(error.message || 'Failed to send login OTP. Please try again.');
+    }
+  }
+
+  // Legacy method for backward compatibility
+  async sendLoginOTPLegacy(data: {
+    login_field: string;
+    login_method: 'phone' | 'email' | 'username';
+  }): Promise<{ message: string; expires_in: number }> {
+    try {
+      const response = await apiClient.post(API_ENDPOINTS.SEND_LOGIN_OTP, data);
+      return response.data as { message: string; expires_in: number };
+    } catch (error: any) {
+      console.error('Send Login OTP Error:', error);
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        if (errorData.non_field_errors) {
+          throw new Error(Array.isArray(errorData.non_field_errors) 
+            ? errorData.non_field_errors.join(', ') 
+            : errorData.non_field_errors);
+        }
+        
+        if (errorData.login_field) {
+          throw new Error(Array.isArray(errorData.login_field) 
+            ? errorData.login_field.join(', ') 
+            : errorData.login_field);
+        }
+        
+        throw new Error(errorData.error || errorData.message || 'Failed to send login OTP');
+      }
+      
+      throw new Error(error.message || 'Failed to send login OTP. Please try again.');
+    }
+  }
+
+  // Verify login OTP and authenticate user
+  async verifyLoginOTP(data: {
+    login_field: string;
+    login_method: 'phone' | 'email' | 'username';
+    otp_code: string;
+  }): Promise<LoginResponse> {
+    try {
+      const response = await apiClient.post(API_ENDPOINTS.VERIFY_LOGIN_OTP, data);
+      
+      const result = response.data as LoginResponse;
+      
+      // Store tokens and user data
+      await this.storeTokens(result.tokens);
+      await this.storeUser(result.user);
+      
+      return result;
+    } catch (error: any) {
+      console.error('Verify Login OTP Error:', error);
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        if (errorData.non_field_errors) {
+          throw new Error(Array.isArray(errorData.non_field_errors) 
+            ? errorData.non_field_errors.join(', ') 
+            : errorData.non_field_errors);
+        }
+        
+        if (errorData.otp_code) {
+          throw new Error(Array.isArray(errorData.otp_code) 
+            ? errorData.otp_code.join(', ') 
+            : errorData.otp_code);
+        }
+        
+        throw new Error(errorData.error || errorData.message || 'Invalid OTP');
+      }
+      
+      throw new Error(error.message || 'OTP verification failed. Please try again.');
+    }
+  }
+
+  // Send forgot password OTP (Enhanced version)
+  async sendForgotPasswordOTP(data: ForgotPasswordOTPRequest): Promise<ForgotPasswordOTPResponse> {
+    try {
+      const response = await apiClient.post(API_ENDPOINTS.SEND_FORGOT_PASSWORD_OTP, data);
+      return response.data as ForgotPasswordOTPResponse;
+    } catch (error: any) {
+      console.error('Send Forgot Password OTP Error:', error);
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        if (errorData.non_field_errors) {
+          throw new Error(Array.isArray(errorData.non_field_errors) 
+            ? errorData.non_field_errors.join(', ') 
+            : errorData.non_field_errors);
+        }
+        
+        if (errorData.login_field) {
+          throw new Error(Array.isArray(errorData.login_field) 
+            ? errorData.login_field.join(', ') 
+            : errorData.login_field);
+        }
+        
+        throw new Error(errorData.error || errorData.message || 'Failed to send password reset OTP');
+      }
+      
+      throw new Error(error.message || 'Failed to send password reset OTP. Please try again.');
+    }
+  }
+
+  // Verify forgot password OTP
+  async verifyForgotPasswordOTP(data: {
+    login_field: string;
+    login_method: 'phone' | 'email' | 'username';
+    otp_code: string;
+  }): Promise<{ message: string; reset_token: string }> {
+    try {
+      const response = await apiClient.post(API_ENDPOINTS.VERIFY_FORGOT_PASSWORD_OTP, data);
+      return response.data as { message: string; reset_token: string };
+    } catch (error: any) {
+      console.error('Verify Forgot Password OTP Error:', error);
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        if (errorData.otp_code) {
+          throw new Error(Array.isArray(errorData.otp_code) 
+            ? errorData.otp_code.join(', ') 
+            : errorData.otp_code);
+        }
+        
+        if (errorData.non_field_errors) {
+          throw new Error(Array.isArray(errorData.non_field_errors) 
+            ? errorData.non_field_errors.join(', ') 
+            : errorData.non_field_errors);
+        }
+        
+        throw new Error(errorData.error || errorData.message || 'OTP verification failed');
+      }
+      
+      throw new Error(error.message || 'OTP verification failed. Please try again.');
+    }
+  }
+
+  // Confirm password reset with new password
+  async confirmPasswordReset(data: {
+    reset_token: string;
+    new_password: string;
+    confirm_password: string;
   }): Promise<{ message: string }> {
     try {
-      const response = await apiClient.post(API_ENDPOINTS.RESET_PASSWORD_CONFIRM, data);
+      const response = await apiClient.post(API_ENDPOINTS.CONFIRM_PASSWORD_RESET, data);
       return response.data as { message: string };
     } catch (error: any) {
       console.error('Confirm Password Reset Error:', error);
-      throw new Error(error.response?.data?.error || 'Failed to reset password');
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        if (errorData.new_password) {
+          throw new Error(Array.isArray(errorData.new_password) 
+            ? errorData.new_password.join(', ') 
+            : errorData.new_password);
+        }
+        
+        if (errorData.confirm_password) {
+          throw new Error(Array.isArray(errorData.confirm_password) 
+            ? errorData.confirm_password.join(', ') 
+            : errorData.confirm_password);
+        }
+        
+        if (errorData.non_field_errors) {
+          throw new Error(Array.isArray(errorData.non_field_errors) 
+            ? errorData.non_field_errors.join(', ') 
+            : errorData.non_field_errors);
+        }
+        
+        throw new Error(errorData.error || errorData.message || 'Password reset failed');
+      }
+      
+      throw new Error(error.message || 'Password reset failed. Please try again.');
     }
   }
 

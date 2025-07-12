@@ -168,7 +168,10 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',
-        'user': '1000/hour'
+        'user': '1000/hour',
+        'otp_request': '10/hour',  # Limit OTP requests
+        'login_attempts': '20/hour',  # Limit login attempts
+        'password_reset': '5/hour',  # Limit password reset attempts
     }
 }
 
@@ -258,4 +261,181 @@ CLOUDINARY_CONFIG = {
     'API_SECRET': env('CLOUDINARY_API_SECRET', default=''),
     'UPLOAD_PRESET': env('CLOUDINARY_UPLOAD_PRESET', default='doklink_upload_preset'),
     'FOLDER': env('CLOUDINARY_FOLDER', default='doklink/profile_pictures')
+}
+
+# Email Configuration
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = env('EMAIL_HOST', default='')
+EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='DokLink <noreply@doklink.com>')
+
+# SMS Configuration (Fast2SMS)
+FAST2SMS_API_KEY = env('FAST2SMS_API_KEY', default='')
+FAST2SMS_SENDER_ID = env('FAST2SMS_SENDER_ID', default='DOKLINK')
+
+# OTP Configuration
+OTP_EXPIRY_MINUTES = env.int('OTP_EXPIRY_MINUTES', default=10)
+OTP_LENGTH = env.int('OTP_LENGTH', default=6)
+MAX_OTP_ATTEMPTS = env.int('MAX_OTP_ATTEMPTS', default=3)
+OTP_RESEND_COOLDOWN_SECONDS = env.int('OTP_RESEND_COOLDOWN_SECONDS', default=60)
+
+# Redis Configuration (for caching and rate limiting)
+REDIS_URL = env('REDIS_URL', default='redis://localhost:6379/0')
+
+# Cache Configuration using Redis
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 50,
+                'retry_on_timeout': True,
+            },
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+            'IGNORE_EXCEPTIONS': True,
+        },
+        'KEY_PREFIX': 'doklink',
+        'TIMEOUT': 300,  # 5 minutes default timeout
+    }
+}
+
+# Session Configuration using Redis
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
+
+# Security Configuration
+LOGIN_ATTEMPT_LIMIT = env.int('LOGIN_ATTEMPT_LIMIT', default=5)
+LOGIN_LOCKOUT_DURATION_MINUTES = env.int('LOGIN_LOCKOUT_DURATION_MINUTES', default=30)
+PASSWORD_RESET_TIMEOUT_MINUTES = env.int('PASSWORD_RESET_TIMEOUT_MINUTES', default=15)
+
+# JWT Configuration from environment
+if env('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=None):
+    SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'] = timedelta(minutes=env.int('JWT_ACCESS_TOKEN_LIFETIME_MINUTES'))
+
+if env('JWT_REFRESH_TOKEN_LIFETIME_DAYS', default=None):
+    SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'] = timedelta(days=env.int('JWT_REFRESH_TOKEN_LIFETIME_DAYS'))
+
+# CORS Configuration from environment
+if env('CORS_ALLOWED_ORIGINS', default=None):
+    CORS_ALLOWED_ORIGINS.extend(env('CORS_ALLOWED_ORIGINS').split(','))
+
+# OTP Service Configuration
+OTP_SETTINGS = {
+    'DEFAULT_OTP_LENGTH': OTP_LENGTH,
+    'DEFAULT_EXPIRY_MINUTES': OTP_EXPIRY_MINUTES,
+    'MAX_ATTEMPTS': MAX_OTP_ATTEMPTS,
+    'RESEND_COOLDOWN_SECONDS': OTP_RESEND_COOLDOWN_SECONDS,
+    'ENABLE_EMAIL_OTP': True,
+    'ENABLE_SMS_OTP': bool(FAST2SMS_API_KEY),
+    'EMAIL_TEMPLATE_PREFIX': 'otp/email/',
+    'SMS_TEMPLATE_PREFIX': 'otp/sms/',
+}
+
+# Rate Limiting Configuration
+RATE_LIMITING = {
+    'OTP_REQUEST_LIMIT': '10/hour',
+    'LOGIN_ATTEMPT_LIMIT': LOGIN_ATTEMPT_LIMIT,
+    'PASSWORD_RESET_LIMIT': '5/hour',
+    'LOCKOUT_DURATION': LOGIN_LOCKOUT_DURATION_MINUTES,
+}
+
+# Security Headers
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+# Additional Security Settings
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+
+# Custom settings for OTP validation
+OTP_VALIDATION_RULES = {
+    'REQUIRE_NUMERIC_ONLY': True,
+    'CASE_SENSITIVE': False,
+    'ALLOW_RESEND_BEFORE_EXPIRY': True,
+    'INVALIDATE_PREVIOUS_ON_NEW_REQUEST': True,
+}
+
+# Audit and Monitoring
+AUDIT_SETTINGS = {
+    'LOG_LOGIN_ATTEMPTS': True,
+    'LOG_OTP_REQUESTS': True,
+    'LOG_FAILED_AUTHENTICATIONS': True,
+    'RETAIN_AUDIT_LOGS_DAYS': 90,
+    'ALERT_ON_SUSPICIOUS_ACTIVITY': True,
+}
+
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': 'django.log',
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'otp_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': 'otp.log',
+            'formatter': 'verbose',
+        },
+        'security_file': {
+            'level': 'WARNING',
+            'class': 'logging.FileHandler',
+            'filename': 'security.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'app_auth.otp_service': {
+            'handlers': ['file', 'console', 'otp_file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'app_auth.views': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'security': {
+            'handlers': ['security_file', 'console'],
+            'level': 'WARNING',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['file', 'console'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+    },
 }
