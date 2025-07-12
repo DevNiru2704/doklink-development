@@ -1,10 +1,22 @@
 // config/cloudinary.ts
 // Cloudinary Configuration fetched from backend
+import axios from 'axios';
+
+// API Configuration - same as api.ts
+const API_BASE_URL = __DEV__ 
+  ? 'http://192.168.1.101:8000'  // Your computer's IP for Expo Go
+  : 'https://your-production-domain.com';  // Production
 
 export interface CloudinaryConfig {
   cloudName: string;
   uploadPreset: string;
   folder: string;
+}
+
+interface CloudinaryConfigResponse {
+  success: boolean;
+  config: CloudinaryConfig;
+  error?: string;
 }
 
 // This will be populated by fetchCloudinaryConfig()
@@ -16,14 +28,10 @@ let cloudinaryConfig: CloudinaryConfig | null = null;
  */
 export async function fetchCloudinaryConfig(): Promise<CloudinaryConfig> {
   try {
-    // Use the backend API endpoint
-    const response = await fetch('http://192.168.1.103:8000/api/v1/auth/cloudinary-config/');
+    // Use the backend API endpoint with axios
+    const response = await axios.get(`${API_BASE_URL}/api/v1/auth/cloudinary-config/`);
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Cloudinary config: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
+    const data = response.data as CloudinaryConfigResponse;
     
     if (!data.success) {
       throw new Error(data.error || 'Failed to get Cloudinary configuration');
@@ -51,18 +59,6 @@ export function getCloudinaryConfig(): CloudinaryConfig {
   }
   return cloudinaryConfig;
 }
-
-/**
- * Legacy export for backward compatibility
- * @deprecated Use fetchCloudinaryConfig() instead
- */
-export const CLOUDINARY_CONFIG = {
-  CLOUD_NAME: '',
-  API_KEY: '',
-  API_SECRET: '',
-  UPLOAD_PRESET: '',
-  FOLDER: ''
-};
 
 // Instructions for setting up Cloudinary on the backend:
 /*

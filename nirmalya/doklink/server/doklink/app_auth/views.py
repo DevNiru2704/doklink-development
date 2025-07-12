@@ -518,7 +518,7 @@ def get_cloudinary_config(request):
             'cloudName': settings.CLOUDINARY_CONFIG['CLOUD_NAME'],
             'uploadPreset': settings.CLOUDINARY_CONFIG['UPLOAD_PRESET'],
             'folder': settings.CLOUDINARY_CONFIG['FOLDER'],
-            # Note: We don't send API_SECRET to frontend for security
+            # Note: We don't send API_KEY or API_SECRET to frontend for security
         }
         
         return Response({
@@ -530,5 +530,59 @@ def get_cloudinary_config(request):
         return Response({
             'success': False,
             'error': 'Failed to get Cloudinary configuration',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def generate_cloudinary_signature(request):
+    """
+    Generate signature for Cloudinary signed uploads
+    Frontend sends upload parameters, backend returns signature
+    """
+    try:
+        # Get parameters from frontend
+        timestamp = request.data.get('timestamp')
+        public_id = request.data.get('public_id')
+        upload_preset = request.data.get('upload_preset')
+        folder = request.data.get('folder')
+        
+        if not all([timestamp, public_id, upload_preset]):
+            return Response({
+                'success': False,
+                'error': 'Missing required parameters: timestamp, public_id, upload_preset'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create parameters string for signing (must be sorted)
+        params_to_sign = {
+            'folder': folder,
+            'public_id': public_id,
+            'timestamp': timestamp,
+            'upload_preset': upload_preset
+        }
+        
+        # Sort parameters and create signing string
+        sorted_params = sorted(params_to_sign.items())
+        params_string = '&'.join(f'{k}={v}' for k, v in sorted_params)
+        
+        # Add API secret to the end
+        string_to_sign = params_string + settings.CLOUDINARY_CONFIG['API_SECRET']
+        
+        # Generate SHA1 signature
+        import hashlib
+        signature = hashlib.sha1(string_to_sign.encode('utf-8')).hexdigest()
+        
+        return Response({
+            'success': True,
+            'signature': signature,
+            'timestamp': timestamp,
+            'apiKey': settings.CLOUDINARY_CONFIG['API_KEY']  # Include API_KEY in signature response
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': 'Failed to generate signature',
             'details': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

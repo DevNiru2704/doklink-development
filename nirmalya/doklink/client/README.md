@@ -1,53 +1,44 @@
-# 🏥 DokLink - One Link to Total Health!
+# DokLink Frontend
 
-DokLink is a comprehensive health management mobile application built with React Native and Expo. It provides users with a unified platform to manage their healthcare needs, including authentication, Aadhaar verification, and health data management.
+React Native + Expo mobile app for health management.
 
-## 📱 Features
+## Setup
 
-- **🔐 User Authentication**: Secure login and signup functionality
-- **📄 Aadhaar Verification**: Integrated Aadhaar verification system
-- **🌙 Dark/Light Mode**: Automatic theme switching based on device preferences
-- **📊 Data Collection**: Consent-based health data collection
-- **🔒 Privacy & Security**: Built-in privacy policy and terms & conditions
-- **📱 Cross-Platform**: Works on iOS, Android, and Web
-- **🎨 Modern UI**: Beautiful gradient designs with smooth animations
-- **📋 Form Validation**: Robust form validation using Formik and Yup
-
-## 🛠️ Tech Stack
-
-- **Framework**: React Native with Expo
-- **Language**: TypeScript
-- **Navigation**: Expo Router (file-based routing)
-- **Forms**: Formik with Yup validation
-- **UI Components**: React Native with custom styled components
-- **Animations**: React Native Animated API
-- **Icons**: Expo Vector Icons
-- **Images**: Expo Image with SVG support
-- **Gradients**: Expo Linear Gradient
-
-## 📁 Project Structure
-
+1. **Install Dependencies**
+```bash
+npm install
 ```
-doklink/
-├── app/                          # Main application screens
-│   ├── _layout.tsx              # Root layout component
-│   ├── index.tsx                # Main app entry point with splash screen
-│   ├── StartingScreen.tsx       # Welcome screen with login/signup options
-│   ├── Login.tsx                # User login screen
-│   ├── SignUp.tsx               # User registration screen
-│   ├── AadharVerification.tsx   # Aadhaar verification flow
-│   ├── DataCollectionConsentForm.tsx  # Data consent form
-│   ├── AboutUs.tsx              # About us page
-│   ├── PrivacyPolicy.tsx        # Privacy policy page
-│   ├── TermsAndCondition.tsx    # Terms and conditions page
-│   └── (tabs)/                  # Tab-based navigation screens
-│       └── Home.tsx             # Main dashboard (coming soon)
-├── assets/                      # Static assets
-│   ├── fonts/                   # Custom fonts
-│   └── images/                  # Images and SVG logos
-├── styles/                      # Styled components and themes
-│   ├── index.ts                 # Main theme styles
-│   ├── StartingScreen.ts        # Starting screen styles
+
+2. **Update IP Address**
+Edit `config/api.ts` line 6 with your computer's IP:
+```typescript
+const API_BASE_URL = 'http://YOUR_IP_ADDRESS:8000'
+```
+
+3. **Start Development Server**
+```bash
+npx expo start
+```
+
+4. **Run on Device**
+- Install Expo Go app on your phone
+- Scan QR code from terminal
+
+## Features
+
+- User authentication
+- Profile picture upload
+- Aadhaar verification
+- Form validation
+- Dark/Light mode
+
+## Tech Stack
+
+- React Native + Expo
+- TypeScript
+- Axios for API calls
+- Expo Router
+- Cloudinary for images
 │   ├── Login.ts                 # Login screen styles
 │   ├── SignUp.ts                # Signup screen styles
 │   ├── AadharVerification.ts    # Aadhaar verification styles

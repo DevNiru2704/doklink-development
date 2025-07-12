@@ -204,13 +204,13 @@ SIMPLE_JWT = {
 # CORS Configuration for React Native & Expo Go
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8081",  # React Native Metro bundler
-    "http://192.168.1.103:8081",  # Your local network IP for Expo Go
+    "http://192.168.1.101:8081",  # Your local network IP for Expo Go
     "http://10.0.2.2:8081",  # Android emulator
     # Add Expo Go specific origins
-    "exp://192.168.1.103:8081",  # Expo Go protocol
-    "http://192.168.1.103:19000",  # Expo CLI server
-    "http://192.168.1.103:19001",  # Expo CLI server
-    "http://192.168.1.103:19002",  # Expo CLI server
+    "exp://192.168.1.101:8081",  # Expo Go protocol
+    "http://192.168.1.101:19000",  # Expo CLI server
+    "http://192.168.1.101:19001",  # Expo CLI server
+    "http://192.168.1.101:19002",  # Expo CLI server
 ]
 
 CORS_ALLOW_CREDENTIALS = True

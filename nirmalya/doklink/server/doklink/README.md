@@ -1,53 +1,65 @@
-# DokLink Backend API
+# DokLink Backend
 
-A Django REST API backend for the DokLink application - a secure document management and verification platform.
+Django REST API for DokLink health management app.
 
-## Overview
+## Setup
 
-The DokLink backend provides a comprehensive REST API for user authentication, profile management, document verification, and secure data handling with Aadhaar integration.
+1. **Create Virtual Environment**
+```bash
+python -m venv .venv
+
+# Activate virtual environment
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
+```
+
+2. **Install Dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+2. **Environment Setup**
+```bash
+cp env-example.env .env
+```
+
+3. **Configure .env**
+```env
+DEBUG=True
+SECRET_KEY=your-secret-key
+DATABASE_URL=postgresql://user:password@localhost:5432/doklink
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+CLOUDINARY_UPLOAD_PRESET=doklink_upload_preset
+CLOUDINARY_FOLDER=doklink/profile_pictures
+```
+
+4. **Database Setup**
+```bash
+python manage.py migrate
+```
+
+5. **Run Server**
+```bash
+python manage.py runserver 0.0.0.0:8000
+```
+
+## API Endpoints
+
+- `POST /api/v1/auth/register/` - User registration
+- `POST /api/v1/auth/login/` - User login
+- `GET /api/v1/auth/cloudinary-config/` - Get Cloudinary config
+- `POST /api/v1/auth/cloudinary-signature/` - Generate upload signature
 
 ## Features
 
-- **User Authentication & Authorization**
-  - JWT-based authentication with refresh tokens
-  - User registration with comprehensive validation
-  - Email and phone verification with OTP
-  - Password reset functionality
-
-- **User Profile Management**
-  - Complete user profile with Aadhaar integration
-  - Address management (permanent and current)
-  - Profile picture upload
-  - Multi-language support
-
-- **Security & Validation**
-  - Comprehensive phone number validation with regex
-  - Aadhaar number format validation
-  - Indian address validation with state choices
-  - CORS enabled for cross-origin requests
-
-- **API Features**
-  - RESTful API design
-  - Comprehensive error handling
-  - Debug logging for development
-  - Structured JSON responses
-
-## Tech Stack
-
-- **Framework:** Django 4.x + Django REST Framework
-- **Database:** PostgreSQL (configurable)
-- **Authentication:** JWT (JSON Web Tokens)
-- **Phone Validation:** django-phonenumber-field
-- **Environment:** python-decouple for configuration
-- **CORS:** django-cors-headers
-
-## Project Structure
-
-```
-doklink/
-├── doklink/                    # Main project configuration
-│   ├── __init__.py
-│   ├── settings.py            # Django settings
+- JWT Authentication
+- User profiles with Aadhaar
+- Cloudinary image upload (signed)
+- Phone/Email validation
 │   ├── urls.py               # Main URL configuration
 │   ├── views.py              # API root view
 │   └── wsgi.py               # WSGI configuration

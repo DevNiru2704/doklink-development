@@ -13,6 +13,7 @@ urlpatterns = [
     
     # Configuration endpoints
     path('cloudinary-config/', views.get_cloudinary_config, name='cloudinary_config'),
+    path('cloudinary-signature/', views.generate_cloudinary_signature, name='cloudinary_signature'),
     
     # User management
     path('profile/', views.ProfileView.as_view(), name='profile'),
