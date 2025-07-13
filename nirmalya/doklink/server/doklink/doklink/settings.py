@@ -206,16 +206,7 @@ SIMPLE_JWT = {
 }
 
 # CORS Configuration for React Native & Expo Go
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8081",  # React Native Metro bundler
-    "http://192.168.1.101:8081",  # Your local network IP for Expo Go
-    "http://10.0.2.2:8081",  # Android emulator
-    # Add Expo Go specific origins
-    "exp://192.168.1.101:8081",  # Expo Go protocol
-    "http://192.168.1.101:19000",  # Expo CLI server
-    "http://192.168.1.101:19001",  # Expo CLI server
-    "http://192.168.1.101:19002",  # Expo CLI server
-]
+CORS_ALLOWED_ORIGINS = env('CORS_ALLOWED_ORIGINS').split(',')
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -261,7 +252,7 @@ CLOUDINARY_CONFIG = {
     'API_KEY': env('CLOUDINARY_API_KEY', default=''),
     'API_SECRET': env('CLOUDINARY_API_SECRET', default=''),
     'UPLOAD_PRESET': env('CLOUDINARY_UPLOAD_PRESET', default='doklink_upload_preset'),
-    'FOLDER': env('CLOUDINARY_FOLDER', default='doklink/profile_pictures')
+    'FOLDER': env('CLOUDINARY_FOLDER', default='doklink/profile_pictures'),
 }
 
 # Email Configuration

@@ -336,15 +336,23 @@ class LoginAudit(models.Model):
         return f"{self.email_attempted} - {self.get_status_display()} at {self.attempted_at}"
 
     @classmethod
-    def log_attempt(cls, email, status, ip_address, user_agent, user=None, otp=None, **kwargs):
-        """Helper method to log login attempts"""
+    def log_attempt(cls, email, status, ip_address, user_agent, user=None, otp=None, otp_used=None, **kwargs):
+        """Helper method to log login attempts.
+
+        Accepts either `otp` (legacy) or `otp_used` (new) keyword for the OTP record so
+        that older call-sites do not break. The first non-None value among the two is
+        persisted in the `otp_used` field.
+        """
+        # Backwards compatibility for both `otp` and `otp_used` keyword arguments
+        otp_record = otp if otp is not None else otp_used
+
         return cls.objects.create(
             user=user,
             email_attempted=email,
             status=status,
             ip_address=ip_address,
             user_agent=user_agent,
-            otp_used=otp,
+            otp_used=otp_record,
             **kwargs
         )
 

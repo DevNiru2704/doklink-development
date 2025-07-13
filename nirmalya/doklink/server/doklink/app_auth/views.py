@@ -819,11 +819,12 @@ def verify_forgot_password_otp(request):
     """Verify OTP for password reset using enhanced OTP service"""
     login_field = request.data.get('login_field')
     login_method = request.data.get('login_method')
-    otp_code = request.data.get('otp')
+    # Accept both 'otp' and 'otp_code' from frontend for backward compatibility
+    otp_code = request.data.get('otp') or request.data.get('otp_code')
     
     if not all([login_field, login_method, otp_code]):
         return Response({
-            'error': 'login_field, login_method, and otp are required'
+            'error': 'login_field, login_method, and otp_code are required'
         }, status=status.HTTP_400_BAD_REQUEST)
     
     # Find user based on login method
@@ -853,9 +854,18 @@ def verify_forgot_password_otp(request):
         success, message = OTPService.verify_otp(user, otp_code, 'password_reset')
         
         if success:
+            # Fetch the OTP record we just verified to use its ID as a reset token
+            otp_record = OTPVerification.objects.filter(
+                user=user,
+                otp_type='password_reset',
+                otp_code=otp_code,
+                is_used=True
+            ).order_by('-created_at').first()
+
             return Response({
                 'message': message + ' You can now reset your password.',
-                'verified': True
+                'verified': True,
+                'reset_token': str(otp_record.id) if otp_record else None
             }, status=status.HTTP_200_OK)
         else:
             return Response({
@@ -876,34 +886,46 @@ def confirm_password_reset(request):
     """Reset password after OTP verification"""
     login_field = request.data.get('login_field')
     login_method = request.data.get('login_method')
+    reset_token = request.data.get('reset_token')
     new_password = request.data.get('new_password')
+    confirm_password = request.data.get('confirm_password')
+
+    if not new_password:
+        return Response({'error': 'new_password is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Optional confirmation check
+    if confirm_password is not None and new_password != confirm_password:
+        return Response({'error': 'new_password and confirm_password do not match'}, status=status.HTTP_400_BAD_REQUEST)
     
-    if not all([login_field, login_method, new_password]):
-        return Response({
-            'error': 'login_field, login_method, and new_password are required'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Find user based on login method
-    user = None
-    try:
-        if login_method == 'email':
-            user = User.objects.get(email=login_field.lower())
-        elif login_method == 'phone':
-            normalized_phone = login_field
-            if login_field.startswith('+91'):
-                normalized_phone = login_field[3:]
-            elif login_field.startswith('91'):
-                normalized_phone = login_field[2:]
-            
-            profile = UserProfile.objects.get(phone_number__endswith=normalized_phone)
-            user = profile.user
-        elif login_method == 'username':
-            user = User.objects.get(username=login_field.lower())
-            
-    except (User.DoesNotExist, UserProfile.DoesNotExist):
-        return Response({
-            'error': f'No account found with this {login_method}'
-        }, status=status.HTTP_404_NOT_FOUND)
+    # Resolve user via reset_token if provided, else fall back to login_field/login_method
+    if reset_token:
+        otp_record = OTPVerification.objects.filter(
+            id=reset_token,
+            otp_type='password_reset',
+            is_used=True,
+            created_at__gte=timezone.now() - timedelta(minutes=15)
+        ).select_related('user').first()
+        if not otp_record:
+            return Response({'error': 'Invalid or expired reset token'}, status=status.HTTP_400_BAD_REQUEST)
+        user = otp_record.user
+    else:
+        try:
+            if login_method == 'email':
+                user = User.objects.get(email=login_field.lower())
+            elif login_method == 'phone':
+                normalized_phone = login_field
+                if login_field and login_field.startswith('+91'):
+                    normalized_phone = login_field[3:]
+                elif login_field and login_field.startswith('91'):
+                    normalized_phone = login_field[2:]
+                profile = UserProfile.objects.get(phone_number__endswith=normalized_phone)
+                user = profile.user
+            elif login_method == 'username':
+                user = User.objects.get(username=login_field.lower())
+            else:
+                return Response({'error': 'Invalid login method'}, status=status.HTTP_400_BAD_REQUEST)
+        except (User.DoesNotExist, UserProfile.DoesNotExist):
+            return Response({'error': f'No account found with this {login_method}'}, status=status.HTTP_404_NOT_FOUND)
     
     # Validate new password
     try:
