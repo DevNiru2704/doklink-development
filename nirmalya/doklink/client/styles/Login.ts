@@ -224,7 +224,7 @@ const dark = StyleSheet.create({
   },
   actionLinkText: {
     color: "#6B7280",
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "400",
     textDecorationLine: "underline",
     textAlign: "center",
@@ -646,7 +646,7 @@ const light = StyleSheet.create({
   },
   actionLinkText: {
     color: "#000",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "bold",
     textDecorationLine: "underline",
     textAlign: "center",
