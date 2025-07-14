@@ -1,7 +1,7 @@
 // components/DebugSignUp.tsx
 import React, { useState } from 'react';
 import { TouchableOpacity, Text, Alert, StyleSheet, View } from 'react-native';
-import { authService } from '../services/authService';
+import { authService } from '../../services/authService';
 
 export const DebugSignUp = () => {
   const [testing, setTesting] = useState(false);

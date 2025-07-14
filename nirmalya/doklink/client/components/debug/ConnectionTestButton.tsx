@@ -1,7 +1,7 @@
 // components/ConnectionTestButton.tsx
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
-import { testBackendConnection, runCompleteTest } from '../utils/connectionTest';
+import { testBackendConnection, runCompleteTest } from '../../utils/debug/connectionTest';
 
 interface ConnectionTestButtonProps {
   style?: any;

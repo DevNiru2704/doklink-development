@@ -1,6 +1,6 @@
 // utils/testConnection.ts
-import apiClient from '../config/api';
-import { authService } from '../services/authService';
+import apiClient from '../../config/api';
+import { authService } from '../../services/authService';
 
 /**
  * Test function to verify backend connection
