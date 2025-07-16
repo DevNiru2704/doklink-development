@@ -206,7 +206,6 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isResendLoading, setIsResendLoading] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
-  const [isAuthenticationFailed, setIsAuthenticationFailed] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(30);
@@ -312,7 +311,6 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
     setIsLoading(false);
     setIsResendLoading(false);
     setIsVerified(false);
-    setIsAuthenticationFailed(false);
     setCountdown(5);
     setOtpSent(false);
     setResendTimer(30);
@@ -385,7 +383,6 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
   // Handle login with real backend authentication
   const handleLogin = async (values: LoginFormValues, { setStatus }: any) => {
     setIsLoading(true);
-    setIsAuthenticationFailed(false);
     console.log("handleLogin called", values);
 
     try {
@@ -417,7 +414,6 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
 
       // Login successful
       setIsVerified(true);
-      setIsAuthenticationFailed(false);
 
       // Navigate to main app
       onLogin();
@@ -425,7 +421,6 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
     } catch (error: any) {
       console.error("Login error:", error);
       setIsVerified(false);
-      setIsAuthenticationFailed(true);
 
       // Set error message for display in form (like SignUp.tsx)
       setStatus({
@@ -578,7 +573,6 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
   // Handle forgot password with real backend
   const handleForgotPassword = async (values: ForgotPasswordFormValues, { setStatus }: any) => {
     setIsLoading(true);
-    setIsAuthenticationFailed(false);
     console.log("handleForgotPassword called", { values, forgotPasswordStep, loginMethod });
     try {
       if (forgotPasswordStep === "send_otp") {
@@ -637,7 +631,6 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
         const response = await authService.verifyForgotPasswordOTP(payload);
         // Store reset token for password reset step
         setResetToken(response.reset_token);
-        setIsAuthenticationFailed(false);
         setForgotPasswordStep("reset_password");
         return;
 
@@ -661,7 +654,6 @@ export default function Login({ onBack, onLogin, onSignUp }: LoginScreenProps) {
       }
     } catch (error: any) {
       console.error("Forgot password error:", error);
-      setIsAuthenticationFailed(true);
       // Show backend error message if available
       let backendMessage = error?.response?.data?.message || error?.message || "Something went wrong. Please try again.";
       setStatus({
@@ -1112,7 +1104,6 @@ const renderLoginForm = () => (
                     onPress={() => {
                       setCurrentScreen("forgot_password");
                       setForgotPasswordStep("send_otp");
-                      setIsAuthenticationFailed(false);
                     }}
                   >
                     <Text style={styles.actionLinkText}>Forgot Password?</Text>
@@ -1127,7 +1118,6 @@ const renderLoginForm = () => (
                     setFieldValue("mode", newMode);
                     setLoginMode(newMode);
                     clearOtpData();
-                    setIsAuthenticationFailed(false);
                   }}
                 >
                   <Text style={styles.actionLinkText}>
@@ -1142,7 +1132,6 @@ const renderLoginForm = () => (
                     setCurrentScreen("method_selection");
                     setLoginMode("password");
                     clearOtpData();
-                    setIsAuthenticationFailed(false);
                   }}
                 >
                   <Text style={styles.actionLinkText}>Try another way</Text>
@@ -1185,18 +1174,6 @@ const renderLoginForm = () => (
               <View style={styles.errorStatus}>
                 <Ionicons name="close-circle" size={24} color="#EF4444" />
                 <Text style={styles.backendErrorText}>{status.message}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* Authentication Failed Status */}
-          {isAuthenticationFailed && (
-            <View style={styles.statusContainer}>
-              <View style={styles.errorStatus}>
-                <Ionicons name="close-circle" size={24} color="#EF4444" />
-                <Text style={[styles.errorText, { marginLeft: 8, marginTop: 0 }]}>
-                  Authentication failed
-                </Text>
               </View>
             </View>
           )}
@@ -1477,7 +1454,6 @@ const renderLoginForm = () => (
                   setCurrentScreen("login_form");
                   setForgotPasswordOtp(["", "", "", "", "", ""]);
                   setOtpSent(false);
-                  setIsAuthenticationFailed(false);
                   setUsernameOTPOptions([]);
                   setSelectedDeliveryMethod(null);
                   setForgotPasswordStep("send_otp");
@@ -1518,17 +1494,7 @@ const renderLoginForm = () => (
             </View>
           )}
 
-          {/* Authentication Failed Status */}
-          {isAuthenticationFailed && (
-            <View style={styles.statusContainer}>
-              <View style={styles.errorStatus}>
-                <Ionicons name="close-circle" size={24} color="#EF4444" />
-                <Text style={[styles.errorText, { marginLeft: 8, marginTop: 0 }]}>
-                  Authentication failed
-                </Text>
-              </View>
-            </View>
-          )}
+
 
           {/* Success Status */}
           {isVerified && (

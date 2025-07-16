@@ -14,11 +14,11 @@ export default function Home({ onLogout, onGoToStartingScreen }: HomeProps) {
                 </Text>
                 
                 <TouchableOpacity 
-                    style={styles.backButton}
-                    onPress={onGoToStartingScreen}
+                    style={styles.logoutButton}
+                    onPress={onLogout}
                 >
-                    <Text style={styles.backButtonText}>
-                        Go back to Starting Screen
+                    <Text style={styles.logoutButtonText}>
+                        Logout
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -45,16 +45,16 @@ const styles = StyleSheet.create({
         marginBottom: 40,
         letterSpacing: 1,
     },
-    backButton: {
-        backgroundColor: '#8DA3B0',
+    logoutButton: {
+        backgroundColor: '#e53935', // Red shade
         paddingVertical: 18,
         paddingHorizontal: 32,
         borderRadius: 25,
         alignItems: 'center',
         minWidth: 280,
     },
-    backButtonText: {
-        color: '#000000',
+    logoutButtonText: {
+        color: '#fff',
         fontSize: 18,
         fontWeight: '600',
     },

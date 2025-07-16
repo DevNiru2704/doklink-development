@@ -1,11 +1,11 @@
 //index.tsx
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useRef, useState } from "react";
-import { Animated, StatusBar, Text, View, useColorScheme } from "react-native";
+import React, { useEffect, useState } from "react";
+import { StatusBar, Text, View, useColorScheme } from "react-native";
 
-import LogoSVGDark from "@/assets/images/just_the_logo_dark.svg";
-import LogoSVGLight from "@/assets/images/just_the_logo_light.svg";
-import useThemedStyles from "@/styles/index";
+import LogoSVGDark from "../assets/images/just_the_logo_dark.svg";
+import LogoSVGLight from "../assets/images/just_the_logo_light.svg";
+import useThemedStyles from "../styles/index";
 
 import Home from "./(tabs)/Home";
 import StartingScreen from "./pages/StartingScreen";
@@ -13,73 +13,67 @@ import StartingScreen from "./pages/StartingScreen";
 export default function App() {
   const colorScheme = useColorScheme();
   const styles = useThemedStyles();
-  const fadeAnimation = useRef(new Animated.Value(1)).current;
   const [showWelcome, setShowWelcome] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const checkAuthenticationState = async () => {
-    //later
+    try {
+      // Import the authService dynamically to avoid circular deps
+      const { authService } = await import('../services/authService');
+      const authenticated = await authService.isAuthenticated();
+      setIsAuthenticated(authenticated);
+    } catch (error) {
+      console.error(error);
+      setIsAuthenticated(false);
+    }
   };
 
-  const handleLogin = () => {
-    setIsAuthenticated(true);
+  // Helper to sync UI state with token state
+  const updateAuthState = async () => {
+    const { authService } = await import('../services/authService');
+    const authenticated = await authService.isAuthenticated();
+    setIsAuthenticated(authenticated);
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
+  const handleLogin = updateAuthState;
+
+  const handleLogout = async () => {
+    const { authService } = await import('../services/authService');
+    await authService.logout();
+    updateAuthState();
   };
 
-  const handleGoToStartingScreen = () => {
-    setIsAuthenticated(false);
-  };
+  const handleGoToStartingScreen = updateAuthState;
 
-  const handleSignUp = () => {
-    // This will be called when user completes signup
-    setIsAuthenticated(true);
-  };
+  const handleSignUp = updateAuthState;
+
 
   useEffect(() => {
     checkAuthenticationState();
 
     const timer = setTimeout(() => {
-      if (colorScheme === 'dark') {
-        // Use opacity animation for dark mode (works well)
-        Animated.timing(fadeAnimation, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }).start(() => {
-          setShowWelcome(false);
-        });
-      } else {
-        // Use faster transition for light mode to avoid gradient artifacts
         setTimeout(() => {
           setShowWelcome(false);
         }, 100);
-      }
     }, 2500); // Slightly longer for better readability
 
     return () => clearTimeout(timer);
-  }, [fadeAnimation, colorScheme]);
+  }, []);
 
   if (showWelcome) {
-    const animationStyle = colorScheme === 'dark' 
-      ? [styles.container, { opacity: fadeAnimation }]
-      : styles.container;
-
     return (
-      <Animated.View style={animationStyle}>
+      <View style={styles.container}>
         <StatusBar
           barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
           backgroundColor={colorScheme === "dark" ? "#1a2332" : "#ffffff"}
         />
-<LinearGradient
-  colors={colorScheme === 'dark' 
-    ? ["#020a0e", "#0a1520", "#020a0e"] 
-    : ["#f8fafc", "#ffffff", "#f1f5f9"] 
-  }
-  style={styles.gradient}
->
+        <LinearGradient
+          colors={colorScheme === 'dark' 
+            ? ["#020a0e", "#0a1520", "#020a0e"] 
+            : ["#f8fafc", "#ffffff", "#f1f5f9"] 
+          }
+          style={styles.gradient}
+        >
           <View style={styles.content}>
             {/* Logo Container */}
             <View style={styles.logoContainer}>
@@ -89,7 +83,6 @@ export default function App() {
                 <LogoSVGLight width={260} height={260} />
               )}
             </View>
-
             {/* Welcome Text */}
             <View style={styles.textContainer}>
               <Text style={styles.welcomeText}>WELCOME TO</Text>
@@ -98,7 +91,7 @@ export default function App() {
             </View>
           </View>
         </LinearGradient>
-      </Animated.View>
+      </View>
     );
   }
 
