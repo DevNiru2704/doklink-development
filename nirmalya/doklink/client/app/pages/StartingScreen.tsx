@@ -1,8 +1,7 @@
 //Starting Screen
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useRef, useState } from "react";
+import {  useState } from "react";
 import {
-  Animated,
   ImageBackground,
   Pressable,
   StatusBar,
@@ -32,7 +31,6 @@ export default function StartingScreen({
   onSignUp,
   onLogin,
 }: StartingScreenProps) {
-  const fadeInAnimation = useRef(new Animated.Value(0)).current;
   const [loginButtonPressed, setLoginButtonPressed] = useState(false);
   const [signUpButtonPressed, setSignUpButtonPressed] = useState(false);
   const [aboutButtonPressed, setAboutButtonPressed] = useState(false);
@@ -69,20 +67,6 @@ export default function StartingScreen({
     setCurrentScreen("login");
   };
 
-  useEffect(() => {
-    if (colorScheme === 'dark') {
-      // Use fade animation for dark mode
-      Animated.timing(fadeInAnimation, {
-        toValue: 1,
-        duration: 500, // 500ms fade in
-        useNativeDriver: true,
-      }).start();
-    } else {
-      // Set to visible immediately for light mode to avoid gradient artifacts
-      fadeInAnimation.setValue(1);
-    }
-  }, [fadeInAnimation, colorScheme]);
-
   if (currentScreen === "about") {
     return <AboutUs onBack={handleBackToMain} />;
   }
@@ -118,12 +102,8 @@ export default function StartingScreen({
     );
   }
 
-  const containerStyle = colorScheme === 'dark' 
-    ? { flex: 1, opacity: fadeInAnimation }
-    : { flex: 1 };
-
   return (
-    <Animated.View style={containerStyle}>
+    <View style={styles.container}>
       <ImageBackground
         source={backgroundImage}
         style={styles.container}
@@ -245,6 +225,6 @@ export default function StartingScreen({
           </View>
         </View>
       </ImageBackground>
-    </Animated.View>
+    </View>
   );
 }

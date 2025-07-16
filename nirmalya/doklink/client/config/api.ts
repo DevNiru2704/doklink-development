@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration
 const API_BASE_URL = __DEV__ 
-  ? 'http://192.168.1.101:8000'  // Your computer's IP for Expo Go. 
+  ? 'http://192.168.1.102:8000'  // Your computer's IP for Expo Go. 
   : 'https://your-production-domain.com';  // Production
   
 // Alternative URLs for different environments:
