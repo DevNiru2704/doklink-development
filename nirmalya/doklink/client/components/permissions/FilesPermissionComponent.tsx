@@ -112,6 +112,23 @@ export default function FilesPermissionComponent({
             <Text style={styles.continueButtonText}>CONTINUE</Text>
           </TouchableOpacity>
         )}
+
+        {/* Manual permission note */}
+        <View style={{ marginTop: 16, paddingHorizontal: 10 }}>
+          <Text
+            style={{
+              fontSize: 12,
+              textAlign: "center",
+              color: colorScheme === "dark" ? "#8DA3B0" : "#005F99",
+              opacity: 0.8,
+            }}
+          >
+            Important: If you deny Doklink permission, it will be treated as
+            permanently denied, and you will need to manually enable it through
+            the system settings. This page is displayed only once unless you
+            uninstall the app or log out.
+          </Text>
+        </View>
       </View>
     </View>
   );
