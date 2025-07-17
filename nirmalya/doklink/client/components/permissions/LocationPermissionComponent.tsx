@@ -112,7 +112,7 @@ export default function LocationPermissionComponent({
           </TouchableOpacity>
         )}
         
-        ;{/* Manual permission note */}
+        {/* Manual permission note */}
         <View style={{ marginTop: 16, paddingHorizontal: 10 }}>
           <Text
             style={{
