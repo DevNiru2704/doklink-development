@@ -24,18 +24,16 @@ export default function App() {
   const [permissionCheckComplete, setPermissionCheckComplete] = useState(false);
 
   // TEMPORARY: Clear all permissions for testing
-  const clearAllPermissions = async () => {
-    await AsyncStorage.removeItem("permission_location");
-    await AsyncStorage.removeItem("permission_files");
-    await AsyncStorage.removeItem("selected_directory_uri");
-    console.log("All permissions cleared for testing");
-  };
+  // const clearAllPermissions = async () => {
+  //   await AsyncStorage.removeItem("permission_location");
+  //   await AsyncStorage.removeItem("permission_files");
+  //   await AsyncStorage.removeItem("selected_directory_uri");
+  //   console.log("All permissions cleared for testing");
+  // };
 
   const checkPermissions = useCallback(async () => {
     try {
       console.log("Starting permission check...");
-      
-      // Check ACTUAL system permissions, not just stored state
 
       // Check location permission - SYSTEM PERMISSION
       const locationSystem = await Location.getForegroundPermissionsAsync();
