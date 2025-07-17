@@ -21,6 +21,7 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [needsPermissions, setNeedsPermissions] = useState(true);
+  const [permissionCheckComplete, setPermissionCheckComplete] = useState(false);
 
   // TEMPORARY: Clear all permissions for testing
   const clearAllPermissions = async () => {
@@ -32,6 +33,8 @@ export default function App() {
 
   const checkPermissions = useCallback(async () => {
     try {
+      console.log("Starting permission check...");
+      
       // Check ACTUAL system permissions, not just stored state
 
       // Check location permission - SYSTEM PERMISSION
@@ -49,24 +52,42 @@ export default function App() {
       // File permission is granted if BOTH media and image permissions are granted
       const fileGranted = mediaGranted && imageGranted;
 
-      // BOTH location and file permissions must be granted at SYSTEM level
-      const allGranted = locationGranted && fileGranted;
-      setNeedsPermissions(!allGranted);
-
-      console.log("SYSTEM Permission check:", {
+      // Check if permissions have been handled (either granted or denied)
+      const locationHandled = await AsyncStorage.getItem("permission_location");
+      const fileHandled = await AsyncStorage.getItem("permission_files");
+      
+      // Permissions are considered "complete" if they're either granted OR have been handled
+      const locationComplete = locationGranted || locationHandled === "denied";
+      const fileComplete = fileGranted || fileHandled === "denied";
+      
+      // We only need to show permission screen if permissions are not complete
+      const allComplete = locationComplete && fileComplete;
+      
+      console.log("Permission check results:", {
         locationSystem: locationSystem.status,
         locationGranted,
+        locationHandled,
+        locationComplete,
         mediaSystem: mediaSystem.status,
         mediaGranted,
         imageSystem: imageSystem.status,
         imageGranted,
         fileGranted,
-        allGranted,
-        needsPermissions: !allGranted,
+        fileHandled,
+        fileComplete,
+        allComplete,
+        needsPermissions: !allComplete,
       });
+
+      setNeedsPermissions(!allComplete);
+      setPermissionCheckComplete(true);
+      
+      return allComplete;
     } catch (error) {
       console.error("Permission check error:", error);
       setNeedsPermissions(true); // Default to showing permissions if error
+      setPermissionCheckComplete(true);
+      return false;
     }
   }, []);
 
@@ -80,10 +101,17 @@ export default function App() {
       // If authenticated, also check permissions
       if (authenticated) {
         await checkPermissions();
+      } else {
+        // If not authenticated, we don't need to check permissions
+        // but we should mark permission check as complete
+        setPermissionCheckComplete(true);
+        setNeedsPermissions(false); // Don't show permission screen for unauthenticated users
       }
     } catch (error) {
       console.error(error);
       setIsAuthenticated(false);
+      setPermissionCheckComplete(true);
+      setNeedsPermissions(false); // Don't show permission screen on error
     }
   }, [checkPermissions]);
 
@@ -92,6 +120,15 @@ export default function App() {
     const { authService } = await import("../services/authService");
     const authenticated = await authService.isAuthenticated();
     setIsAuthenticated(authenticated);
+    
+    // If authenticated, check permissions
+    if (authenticated) {
+      await checkPermissions();
+    } else {
+      // If not authenticated, reset permission states
+      setPermissionCheckComplete(true);
+      setNeedsPermissions(false);
+    }
   };
 
   const handleLogin = updateAuthState;
@@ -103,13 +140,21 @@ export default function App() {
     await AsyncStorage.removeItem("permission_location");
     await AsyncStorage.removeItem("permission_files");
     await AsyncStorage.removeItem("selected_directory_uri");
-    setNeedsPermissions(true); // Reset to needing permissions on logout
-    updateAuthState();
+    
+    // Reset states immediately for logout
+    setIsAuthenticated(false);
+    setNeedsPermissions(false); // Don't show permissions for unauthenticated users
+    setPermissionCheckComplete(true); // Mark as complete so we don't show loading
   };
 
   const handleGoToStartingScreen = updateAuthState;
 
   const handleSignUp = updateAuthState;
+
+  const handleAllPermissionsGranted = useCallback(() => {
+    console.log("All permissions handled, updating UI state...");
+    setNeedsPermissions(false);
+  }, []);
 
   useEffect(() => {
     checkAuthenticationState();
@@ -123,6 +168,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [checkAuthenticationState]);
 
+  // Show welcome screen
   if (showWelcome) {
     return (
       <View style={styles.container}>
@@ -159,18 +205,36 @@ export default function App() {
     );
   }
 
+  // Only wait for permission check to complete if user is authenticated
+  // For unauthenticated users, we should show StartingScreen immediately
+  if (isAuthenticated && !permissionCheckComplete) {
+    return (
+      <View style={styles.container}>
+        <StatusBar
+          barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
+          backgroundColor={colorScheme === "dark" ? "#1a2332" : "#ffffff"}
+        />
+        <LinearGradient
+          colors={
+            colorScheme === "dark"
+              ? ["#020a0e", "#0a1520", "#020a0e"]
+              : ["#f8fafc", "#ffffff", "#f1f5f9"]
+          }
+          style={styles.gradient}
+        >
+          <View style={styles.content}>
+            {/* You can add a loading spinner here if needed */}
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  }
+
   // If user is authenticated but needs permissions, show permission screen
   if (isAuthenticated && needsPermissions) {
     return (
       <AppPermission
-        onAllPermissionsGranted={async () => {
-          console.log(
-            "Permission callback triggered, re-checking permissions..."
-          );
-          // Re-check permissions when callback is triggered
-          await checkPermissions();
-          console.log("Permissions re-checked, should navigate to Home now");
-        }}
+        onAllPermissionsGranted={handleAllPermissionsGranted}
       />
     );
   }

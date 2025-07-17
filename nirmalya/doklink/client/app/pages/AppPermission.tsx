@@ -46,10 +46,8 @@ export default function AppPermission({
   const [pendingPermissions, setPendingPermissions] = useState<
     PermissionItem[]
   >([]);
-  const [permissionStates, setPermissionStates] = useState<{
-    [key: string]: boolean;
-  }>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const colorScheme = useColorScheme();
@@ -62,7 +60,6 @@ export default function AppPermission({
         id: "location",
         component: LocationPermissionComponent,
         checkPermission: async () => {
-          // Check ACTUAL system permission for location
           const { status } = await Location.getForegroundPermissionsAsync();
           return status === "granted";
         },
@@ -74,7 +71,6 @@ export default function AppPermission({
 
             const granted = result.status === "granted";
 
-            // Store the permission state
             await AsyncStorage.setItem(
               "permission_location",
               granted ? "granted" : "denied"
@@ -96,17 +92,13 @@ export default function AppPermission({
         id: "files",
         component: FilesPermissionComponent,
         checkPermission: async () => {
-          // Check ACTUAL system permissions for files
           try {
-            // Check media library permission
             const mediaResult = await MediaLibrary.getPermissionsAsync();
             const mediaGranted = mediaResult.status === "granted";
 
-            // Check image picker permission  
             const imageResult = await ImagePicker.getMediaLibraryPermissionsAsync();
             const imageGranted = imageResult.status === "granted";
 
-            // Both must be granted for file permission to be considered granted
             const filePermissionGranted = mediaGranted && imageGranted;
             
             console.log("File permission check:", {
@@ -127,7 +119,6 @@ export default function AppPermission({
           try {
             console.log("Starting comprehensive file permission request...");
 
-            // Step 1: Request Music & Audio permissions
             console.log("Step 1: Requesting music & audio permissions...");
             const audioResult = await MediaLibrary.requestPermissionsAsync();
             console.log("Music & audio permission result:", audioResult);
@@ -138,7 +129,6 @@ export default function AppPermission({
               return false;
             }
 
-            // Step 2: Request Photos & Videos permissions (using ImagePicker)
             console.log("Step 2: Requesting photos & videos permissions...");
             const photoResult =
               await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -148,23 +138,18 @@ export default function AppPermission({
               console.log("Photos & videos permission denied");
               await AsyncStorage.setItem("permission_files", "denied");
               return false;
-            } else {
-              console.log("Photos & videos permission already granted or just granted");
             }
 
-            // Step 3: Request Storage Access Framework directory access
             console.log(
-              "Step 2: Requesting directory access via Storage Access Framework..."
+              "Step 3: Requesting directory access via Storage Access Framework..."
             );
 
             try {
-              // Use FileSystem to request directory access via Storage Access Framework
               const directoryUri =
                 await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
               console.log("Directory access result:", directoryUri);
 
               if (directoryUri.granted) {
-                // Store both the permission state and the directory URI for future use
                 await AsyncStorage.setItem("permission_files", "granted");
                 await AsyncStorage.setItem(
                   "selected_directory_uri",
@@ -172,11 +157,6 @@ export default function AppPermission({
                 );
 
                 console.log("All file permissions granted successfully!");
-                console.log(
-                  "Selected directory URI:",
-                  directoryUri.directoryUri
-                );
-
                 return true;
               } else {
                 console.log("Directory access denied");
@@ -185,8 +165,6 @@ export default function AppPermission({
               }
             } catch (directoryError) {
               console.log("Directory access error:", directoryError);
-              // Even if directory access fails, we still have media permissions
-              // So we'll consider it partially granted
               await AsyncStorage.setItem("permission_files", "granted");
               return true;
             }
@@ -204,18 +182,14 @@ export default function AppPermission({
   const checkPendingPermissions = useCallback(async () => {
     setIsLoading(true);
     const pending: PermissionItem[] = [];
-    const states: { [key: string]: boolean } = {};
 
     for (const permission of allPermissions) {
       const isGranted = await permission.checkPermission();
-      states[permission.id] = isGranted;
-
       if (!isGranted) {
         pending.push(permission);
       }
     }
 
-    setPermissionStates(states);
     setPendingPermissions(pending);
     setIsLoading(false);
   }, [allPermissions]);
@@ -227,48 +201,104 @@ export default function AppPermission({
   // Handle when all permissions are granted
   useEffect(() => {
     if (!isLoading && pendingPermissions.length === 0) {
-      console.log("All permissions granted, calling callback...");
+      console.log("All permissions handled, calling callback...");
       onAllPermissionsGranted();
     }
   }, [isLoading, pendingPermissions.length, onAllPermissionsGranted]);
 
   const handleAllow = async () => {
+    if (isProcessing) return; // Prevent multiple simultaneous requests
+    
     const currentPermission = pendingPermissions[currentIndex];
-    if (currentPermission) {
-      try {
-        console.log(`Requesting permission for: ${currentPermission.id}`);
-        const result = await currentPermission.requestPermission();
-        console.log(`Permission result for ${currentPermission.id}:`, result);
+    if (!currentPermission) return;
 
-        // Re-check permissions after request
-        await checkPendingPermissions();
-      } catch (error) {
-        console.log("Permission request error:", error);
-        // Mark as handled even if error occurred
-        await AsyncStorage.setItem(
-          `permission_${currentPermission.id}`,
-          "denied"
-        );
-        handleNext();
+    setIsProcessing(true);
+    
+    try {
+      console.log(`Requesting permission for: ${currentPermission.id}`);
+      const granted = await currentPermission.requestPermission();
+      
+      console.log(`Permission result for ${currentPermission.id}:`, granted);
+      
+      // Store the actual state
+      await AsyncStorage.setItem(
+        `permission_${currentPermission.id}`,
+        granted ? "granted" : "denied"
+      );
+      
+      // Remove the current permission from pending list
+      const newPendingPermissions = pendingPermissions.filter(
+        (_, index) => index !== currentIndex
+      );
+      
+      setPendingPermissions(newPendingPermissions);
+      
+      // Adjust currentIndex if necessary
+      if (currentIndex >= newPendingPermissions.length && newPendingPermissions.length > 0) {
+        setCurrentIndex(newPendingPermissions.length - 1);
+      } else if (newPendingPermissions.length > 0) {
+        // Stay at the same index to show the next permission
+        // Scroll to the current position
+        scrollViewRef.current?.scrollTo({
+          x: currentIndex * screenWidth,
+          animated: true,
+        });
       }
+      
+    } catch (error) {
+      console.log("Permission request error:", error);
+      await AsyncStorage.setItem(
+        `permission_${currentPermission.id}`,
+        "denied"
+      );
+      
+      // Remove the current permission from pending list even if error occurred
+      const newPendingPermissions = pendingPermissions.filter(
+        (_, index) => index !== currentIndex
+      );
+      
+      setPendingPermissions(newPendingPermissions);
+      
+      // Adjust currentIndex if necessary
+      if (currentIndex >= newPendingPermissions.length && newPendingPermissions.length > 0) {
+        setCurrentIndex(newPendingPermissions.length - 1);
+      }
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleNext = () => {
-    if (currentIndex < pendingPermissions.length - 1) {
-      const nextIndex = currentIndex + 1;
-      setCurrentIndex(nextIndex);
+    if (isProcessing) return; // Prevent actions while processing
+    
+    const currentPermission = pendingPermissions[currentIndex];
+    if (!currentPermission) return;
+
+    // Store as denied when user chooses to continue
+    AsyncStorage.setItem(`permission_${currentPermission.id}`, "denied");
+    
+    // Remove the current permission from pending list
+    const newPendingPermissions = pendingPermissions.filter(
+      (_, index) => index !== currentIndex
+    );
+    
+    setPendingPermissions(newPendingPermissions);
+    
+    // Adjust currentIndex if necessary
+    if (currentIndex >= newPendingPermissions.length && newPendingPermissions.length > 0) {
+      setCurrentIndex(newPendingPermissions.length - 1);
+    } else if (newPendingPermissions.length > 0) {
+      // Stay at the same index to show the next permission
       scrollViewRef.current?.scrollTo({
-        x: nextIndex * screenWidth,
+        x: currentIndex * screenWidth,
         animated: true,
       });
-    } else {
-      // All permissions handled, re-check and proceed
-      checkPendingPermissions();
     }
   };
 
   const handleScroll = (event: any) => {
+    if (isProcessing) return; // Prevent scroll during processing
+    
     const contentOffset = event.nativeEvent.contentOffset;
     const index = Math.round(contentOffset.x / screenWidth);
     setCurrentIndex(index);
@@ -318,6 +348,7 @@ export default function AppPermission({
           onScroll={handleScroll}
           scrollEventThrottle={16}
           style={styles.scrollView}
+          scrollEnabled={!isProcessing} // Disable scroll during processing
         >
           {pendingPermissions.map((permission) => {
             const PermissionComponent = permission.component;

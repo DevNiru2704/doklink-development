@@ -1,3 +1,4 @@
+//Home.tsx
 import {useState, useEffect} from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, Image } from 'react-native';
 import { authService } from '../../services/authService';
@@ -7,7 +8,7 @@ interface HomeProps{
     onLogout: () => void;
     onGoToStartingScreen: () => void;
 };
-
+// 
 export default function Home({ onLogout, onGoToStartingScreen }: HomeProps) {
   const [user, setUser] = useState<User | null>(null);
   useEffect(() => {
