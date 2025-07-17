@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TouchableOpacity, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { LoginComponentProps, DeliveryMethodType } from "../../app/components/login/types";
+import { LoginComponentProps, DeliveryMethodType } from "../../utils/login/types";
 import { authService } from "@/services/authService";
 
 export default function UsernameOTPChoice(props: LoginComponentProps) {
