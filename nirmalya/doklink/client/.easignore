@@ -1,0 +1,28 @@
+# Ignore parent and unrelated folders/files
+../*
+!/client/**
+
+# Ignore build artifacts and system files
+node_modules/
+dist/
+build/
+.expo/
+.expo-shared/
+web-build/
+*.log
+*.tmp
+*.swp
+
+# Ignore git and version control
+.git/
+.gitignore
+
+# Ignore macOS and Windows system files
+.DS_Store
+Thumbs.db
+
+# Ignore test and coverage files
+coverage/
+
+# Ignore any common-assets folder if present
+common-assets/

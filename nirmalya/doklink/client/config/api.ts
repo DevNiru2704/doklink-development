@@ -3,10 +3,10 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration
-const API_BASE_URL = __DEV__ 
-  ? 'http://192.168.1.102:8000'  // Your computer's IP for Expo Go. 
+const API_BASE_URL = __DEV__
+  ? 'http://10.245.195.230:8000'  // Your computer's IP for Expo Go. 
   : 'https://your-production-domain.com';  // Production
-  
+
 // Alternative URLs for different environments:
 // const API_BASE_URL = 'http://127.0.0.1:8000';  // Only works with emulator/simulator
 // const API_BASE_URL = 'http://10.0.2.2:8000';  // Android emulator only
@@ -141,13 +141,13 @@ export interface SignUpRequest {
   email: string;
   username: string;
   password: string;
-  
+
   // Profile Info
   phone_number: string;
   date_of_birth?: string;
   profile_picture?: string;
   aadhaar_number: string;
-  
+
   // Address Info
   permanent_address: {
     address: string;
@@ -162,11 +162,11 @@ export interface SignUpRequest {
     pin: string;
   };
   same_as_permanent: boolean;
-  
+
   // Preferences
   preferred_language: string;
   referral_code?: string;
-  
+
   // Agreements
   terms_conditions_accepted: boolean;
   privacy_policy_accepted: boolean;
@@ -286,18 +286,18 @@ export const API_ENDPOINTS = {
   SIGNUP: '/signup/',
   LOGIN: '/login/',
   PROFILE: '/profile/',
-  
+
   // Login OTP
   GET_USERNAME_OTP_OPTIONS: '/get-username-otp-options/',
   SEND_LOGIN_OTP: '/send-login-otp/',
   VERIFY_LOGIN_OTP: '/verify-login-otp/',
-  
+
   // Email/Phone Verification
   VERIFY_EMAIL: '/verify-email/',
   VERIFY_PHONE: '/verify-phone/',
   SEND_PHONE_OTP: '/send-phone-otp/',
   CHECK_VERIFICATION_STATUS: '/check-verification-status/',
-  
+
   // Password Reset
   RESET_PASSWORD_REQUEST: '/reset-password-request/',
   RESET_PASSWORD_CONFIRM: '/reset-password-confirm/',

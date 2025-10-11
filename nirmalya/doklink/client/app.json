@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "doklink",
+    "name": "Doklink",
     "slug": "doklink",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -46,6 +46,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "55c2fe28-677c-4f4b-a57e-ea6ccfd43ffa"
+      }
     }
   }
 }
