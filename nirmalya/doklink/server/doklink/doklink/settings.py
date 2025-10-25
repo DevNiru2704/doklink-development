@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'phonenumber_field',
     'django_extensions',
     'app_auth',
+    'healthcare',
     'django_browser_reload'
     
 ]
@@ -263,6 +264,9 @@ CLOUDINARY_CONFIG = {
     'UPLOAD_PRESET': env('CLOUDINARY_UPLOAD_PRESET', default='doklink_upload_preset'),
     'FOLDER': env('CLOUDINARY_FOLDER', default='doklink/profile_pictures'),
 }
+
+# Google Places API Configuration
+GOOGLE_PLACES_API_KEY = env('GOOGLE_PLACES_API_KEY', default='')
 
 # Email Configuration
 EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')

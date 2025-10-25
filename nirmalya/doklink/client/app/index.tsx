@@ -6,12 +6,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as MediaLibrary from "expo-media-library";
 import * as ImagePicker from "expo-image-picker";
+import { Redirect } from "expo-router";
 
 import LogoSVGDark from "../assets/images/just_the_logo_dark.svg";
 import LogoSVGLight from "../assets/images/just_the_logo_light.svg";
 import useThemedStyles from "../styles/index";
 
-import Home from "./(tabs)/Home";
 import StartingScreen from "./pages/StartingScreen";
 import AppPermission from "./pages/AppPermission";
 
@@ -53,14 +53,14 @@ export default function App() {
       // Check if permissions have been handled (either granted or denied)
       const locationHandled = await AsyncStorage.getItem("permission_location");
       const fileHandled = await AsyncStorage.getItem("permission_files");
-      
+
       // Permissions are considered "complete" if they're either granted OR have been handled
       const locationComplete = locationGranted || locationHandled === "denied";
       const fileComplete = fileGranted || fileHandled === "denied";
-      
+
       // We only need to show permission screen if permissions are not complete
       const allComplete = locationComplete && fileComplete;
-      
+
       console.log("Permission check results:", {
         locationSystem: locationSystem.status,
         locationGranted,
@@ -79,7 +79,7 @@ export default function App() {
 
       setNeedsPermissions(!allComplete);
       setPermissionCheckComplete(true);
-      
+
       return allComplete;
     } catch (error) {
       console.error("Permission check error:", error);
@@ -118,7 +118,7 @@ export default function App() {
     const { authService } = await import("../services/authService");
     const authenticated = await authService.isAuthenticated();
     setIsAuthenticated(authenticated);
-    
+
     // If authenticated, check permissions
     if (authenticated) {
       await checkPermissions();
@@ -138,14 +138,12 @@ export default function App() {
     await AsyncStorage.removeItem("permission_location");
     await AsyncStorage.removeItem("permission_files");
     await AsyncStorage.removeItem("selected_directory_uri");
-    
+
     // Reset states immediately for logout
     setIsAuthenticated(false);
     setNeedsPermissions(false); // Don't show permissions for unauthenticated users
     setPermissionCheckComplete(true); // Mark as complete so we don't show loading
   };
-
-  const handleGoToStartingScreen = updateAuthState;
 
   const handleSignUp = updateAuthState;
 
@@ -237,14 +235,9 @@ export default function App() {
     );
   }
 
-  // If user is authenticated and doesn't need permissions, show Home
+  // If user is authenticated and doesn't need permissions, redirect to Dashboard
   if (isAuthenticated && !needsPermissions) {
-    return (
-      <Home
-        onLogout={handleLogout}
-        onGoToStartingScreen={handleGoToStartingScreen}
-      />
-    );
+    return <Redirect href="/(tabs)/Dashboard" />;
   }
 
   // If not authenticated, show StartingScreen

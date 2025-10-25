@@ -1,0 +1,201 @@
+from django.db import models
+from django.contrib.auth.models import User
+from django.core.validators import RegexValidator
+from phonenumber_field.modelfields import PhoneNumberField
+
+
+class Doctor(models.Model):
+    """Normalized Doctor model"""
+    name = models.CharField(max_length=200)
+    specialization = models.CharField(max_length=200, blank=True)
+    phone_number = PhoneNumberField(blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    registration_number = models.CharField(max_length=100, blank=True, help_text="Medical registration number")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Doctor"
+        verbose_name_plural = "Doctors"
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['specialization']),
+        ]
+
+    def __str__(self):
+        if self.specialization:
+            return f"Dr. {self.name} - {self.specialization}"
+        return f"Dr. {self.name}"
+
+
+class Hospital(models.Model):
+    """Normalized Hospital model"""
+    name = models.CharField(max_length=300)
+    address = models.TextField()
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    pin_code = models.CharField(
+        max_length=6,
+        validators=[
+            RegexValidator(
+                regex=r'^[1-9][0-9]{5}$',
+                message="PIN code must be exactly 6 digits"
+            )
+        ]
+    )
+    phone_number = PhoneNumberField(blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    website = models.URLField(blank=True, null=True)
+    
+    # Location coordinates for Google Maps
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Hospital"
+        verbose_name_plural = "Hospitals"
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['city', 'state']),
+        ]
+
+    def __str__(self):
+        return f"{self.name}, {self.city}"
+
+
+class Treatment(models.Model):
+    """Patient's ongoing treatments"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='treatments')
+    treatment_name = models.CharField(max_length=300)
+    doctor = models.ForeignKey(Doctor, on_delete=models.SET_NULL, null=True, related_name='treatments')
+    hospital = models.ForeignKey(Hospital, on_delete=models.SET_NULL, null=True, related_name='treatments')
+    started_date = models.DateField()
+    expected_end_date = models.DateField(blank=True, null=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('ongoing', 'Ongoing'),
+            ('completed', 'Completed'),
+            ('paused', 'Paused'),
+            ('cancelled', 'Cancelled'),
+        ],
+        default='ongoing'
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Treatment"
+        verbose_name_plural = "Treatments"
+        ordering = ['-started_date']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['started_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.treatment_name} - {self.user.username}"
+
+
+class Booking(models.Model):
+    """Patient's bookings (appointments, hospital beds, follow-ups)"""
+    BOOKING_TYPE_CHOICES = [
+        ('doctor_appointment', 'Doctor Appointment'),
+        ('hospital_bed', 'Hospital Bed'),
+        ('follow_up', 'Follow-up'),
+        ('lab_test', 'Lab Test'),
+        ('surgery', 'Surgery'),
+        ('consultation', 'Consultation'),
+    ]
+
+    STATUS_CHOICES = [
+        ('confirmed', 'Confirmed'),
+        ('pending', 'Pending'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
+        ('rescheduled', 'Rescheduled'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bookings')
+    booking_type = models.CharField(max_length=30, choices=BOOKING_TYPE_CHOICES)
+    hospital = models.ForeignKey(Hospital, on_delete=models.SET_NULL, null=True, related_name='bookings')
+    doctor = models.ForeignKey(Doctor, on_delete=models.SET_NULL, null=True, blank=True, related_name='bookings')
+    booking_date = models.DateField()
+    booking_time = models.TimeField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Additional details
+    location_details = models.CharField(max_length=300, blank=True, help_text="Ward, Bed number, Room, etc.")
+    notes = models.TextField(blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Booking"
+        verbose_name_plural = "Bookings"
+        ordering = ['booking_date', 'booking_time']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['booking_date', 'booking_time']),
+            models.Index(fields=['booking_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_booking_type_display()} - {self.user.username} on {self.booking_date}"
+
+
+class Payment(models.Model):
+    """Patient's payments (insurance, bills, etc.)"""
+    PAYMENT_TYPE_CHOICES = [
+        ('insurance_premium', 'Insurance Premium'),
+        ('hospital_bill', 'Hospital Bill'),
+        ('doctor_fee', 'Doctor Fee'),
+        ('lab_test', 'Lab Test'),
+        ('medicine', 'Medicine'),
+        ('insurance_renewal', 'Insurance Renewal'),
+        ('other', 'Other'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('overdue', 'Overdue'),
+        ('cancelled', 'Cancelled'),
+        ('partial', 'Partially Paid'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
+    payment_type = models.CharField(max_length=30, choices=PAYMENT_TYPE_CHOICES)
+    title = models.CharField(max_length=300)
+    provider_name = models.CharField(max_length=300, help_text="Insurance company, Hospital, etc.")
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    due_date = models.DateField()
+    paid_date = models.DateField(blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Optional relations
+    hospital = models.ForeignKey(Hospital, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
+    doctor = models.ForeignKey(Doctor, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
+    booking = models.ForeignKey(Booking, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
+    
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Payment"
+        verbose_name_plural = "Payments"
+        ordering = ['due_date']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['due_date']),
+            models.Index(fields=['payment_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} - ₹{self.amount} - {self.user.username}"

@@ -4,7 +4,7 @@ import axios from 'axios';
 
 // API Configuration - same as api.ts
 const API_BASE_URL = __DEV__
-  ? 'http://10.245.195.230:8000'  // Your computer's IP for Expo Go
+  ? 'http://10.215.181.230:8000'  // Your computer's IP for Expo Go
   : 'https://your-production-domain.com';  // Production
 
 export interface CloudinaryConfig {

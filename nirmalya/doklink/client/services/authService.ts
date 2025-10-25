@@ -1,7 +1,7 @@
 // services/authService.ts
-import apiClient, { 
-  SignUpRequest, 
-  SignUpResponse, 
+import apiClient, {
+  SignUpRequest,
+  SignUpResponse,
   LoginResponse,
   OTPRequest,
   OTPResponse,
@@ -74,23 +74,23 @@ class AuthService {
   async signUp(signUpData: any): Promise<SignUpResponse> {
     try {
       const response = await apiClient.post(API_ENDPOINTS.SIGNUP, signUpData);
-      
+
       const result = response.data as SignUpResponse;
-      
+
       // Store tokens and user data
       await this.storeTokens(result.tokens);
       await this.storeUser(result.user);
-      
+
       return result;
     } catch (error: any) {
       console.error('SignUp Error:', error);
       console.error('SignUp Error Response:', error.response?.data);
       console.error('SignUp Error Status:', error.response?.status);
-      
+
       // Handle different error types
       if (error.response?.data) {
         const errorData = error.response.data;
-        
+
         // Format validation errors for better UX
         if (errorData.email) {
           throw new Error(`Email: ${Array.isArray(errorData.email) ? errorData.email.join(', ') : errorData.email}`);
@@ -110,7 +110,7 @@ class AuthService {
         if (errorData.non_field_errors) {
           throw new Error(`${Array.isArray(errorData.non_field_errors) ? errorData.non_field_errors.join(', ') : errorData.non_field_errors}`);
         }
-        
+
         // Show all errors if available
         if (typeof errorData === 'object') {
           const allErrors = Object.entries(errorData).map(([field, errors]) => {
@@ -119,10 +119,10 @@ class AuthService {
           }).join('\n');
           throw new Error(allErrors);
         }
-        
+
         throw new Error(errorData.error || errorData.message || 'Registration failed');
       }
-      
+
       throw new Error(error.message || 'Registration failed. Please try again.');
     }
   }
@@ -137,42 +137,42 @@ class AuthService {
   }): Promise<LoginResponse> {
     try {
       const response = await apiClient.post(API_ENDPOINTS.LOGIN, loginData);
-      
+
       const result = response.data as LoginResponse;
-      
+
       // Store tokens and user data
       await this.storeTokens(result.tokens);
       await this.storeUser(result.user);
-      
+
       return result;
     } catch (error: any) {
       console.error('Login Error:', error);
-      
+
       if (error.response?.data) {
         const errorData = error.response.data;
-        
+
         // Handle specific authentication errors
         if (errorData.non_field_errors) {
-          throw new Error(Array.isArray(errorData.non_field_errors) 
-            ? errorData.non_field_errors.join(', ') 
+          throw new Error(Array.isArray(errorData.non_field_errors)
+            ? errorData.non_field_errors.join(', ')
             : errorData.non_field_errors);
         }
-        
+
         if (errorData.login_field) {
-          throw new Error(Array.isArray(errorData.login_field) 
-            ? errorData.login_field.join(', ') 
+          throw new Error(Array.isArray(errorData.login_field)
+            ? errorData.login_field.join(', ')
             : errorData.login_field);
         }
 
         if (errorData.otp_code) {
-          throw new Error(Array.isArray(errorData.otp_code) 
-            ? errorData.otp_code.join(', ') 
+          throw new Error(Array.isArray(errorData.otp_code)
+            ? errorData.otp_code.join(', ')
             : errorData.otp_code);
         }
-        
+
         throw new Error(errorData.error || errorData.message || 'Login failed');
       }
-      
+
       throw new Error(error.message || 'Login failed. Please try again.');
     }
   }
@@ -182,10 +182,10 @@ class AuthService {
     try {
       // Clear local storage
       await this.clearTokens();
-      
+
       // Note: You might want to call a logout endpoint here to invalidate tokens on server
       // await apiClient.post('/logout/');
-      
+
     } catch (error) {
       console.error('Logout Error:', error);
       // Still clear local tokens even if server logout fails
@@ -198,10 +198,10 @@ class AuthService {
     try {
       const response = await apiClient.get(API_ENDPOINTS.PROFILE);
       const user = response.data as User;
-      
+
       // Update stored user data
       await this.storeUser(user);
-      
+
       return user;
     } catch (error: any) {
       console.error('Get Profile Error:', error);
@@ -214,10 +214,10 @@ class AuthService {
     try {
       const response = await apiClient.put(API_ENDPOINTS.PROFILE, profileData);
       const result = response.data as any;
-      
+
       // Update stored user data
       await this.storeUser(result.user);
-      
+
       return result.user;
     } catch (error: any) {
       console.error('Update Profile Error:', error);
@@ -242,14 +242,14 @@ class AuthService {
   async verifyEmail(otpData: OTPRequest): Promise<OTPResponse> {
     try {
       const response = await apiClient.post(API_ENDPOINTS.VERIFY_EMAIL, otpData);
-      
+
       // Update stored user data to reflect email verification
       const user = await this.getStoredUser();
       if (user) {
         user.profile.email_verified = true;
         await this.storeUser(user);
       }
-      
+
       return response.data as OTPResponse;
     } catch (error: any) {
       console.error('Verify Email Error:', error);
@@ -272,14 +272,14 @@ class AuthService {
   async verifyPhone(otpData: OTPRequest): Promise<OTPResponse> {
     try {
       const response = await apiClient.post(API_ENDPOINTS.VERIFY_PHONE, otpData);
-      
+
       // Update stored user data to reflect phone verification
       const user = await this.getStoredUser();
       if (user) {
         user.profile.phone_verified = true;
         await this.storeUser(user);
       }
-      
+
       return response.data as OTPResponse;
     } catch (error: any) {
       console.error('Verify Phone Error:', error);
@@ -316,12 +316,12 @@ class AuthService {
       return response.data as UsernameOTPOptionsResponse;
     } catch (error: any) {
       console.error('Get Username OTP Options Error:', error);
-      
+
       if (error.response?.data) {
         const errorData = error.response.data;
         throw new Error(errorData.error || errorData.message || 'Failed to get OTP options');
       }
-      
+
       throw new Error(error.message || 'Failed to get OTP options. Please try again.');
     }
   }
@@ -333,25 +333,25 @@ class AuthService {
       return response.data as LoginOTPResponse;
     } catch (error: any) {
       console.error('Send Login OTP Error:', error);
-      
+
       if (error.response?.data) {
         const errorData = error.response.data;
-        
+
         if (errorData.non_field_errors) {
-          throw new Error(Array.isArray(errorData.non_field_errors) 
-            ? errorData.non_field_errors.join(', ') 
+          throw new Error(Array.isArray(errorData.non_field_errors)
+            ? errorData.non_field_errors.join(', ')
             : errorData.non_field_errors);
         }
-        
+
         if (errorData.login_field) {
-          throw new Error(Array.isArray(errorData.login_field) 
-            ? errorData.login_field.join(', ') 
+          throw new Error(Array.isArray(errorData.login_field)
+            ? errorData.login_field.join(', ')
             : errorData.login_field);
         }
-        
+
         throw new Error(errorData.error || errorData.message || 'Failed to send login OTP');
       }
-      
+
       throw new Error(error.message || 'Failed to send login OTP. Please try again.');
     }
   }
@@ -366,25 +366,25 @@ class AuthService {
       return response.data as { message: string; expires_in: number };
     } catch (error: any) {
       console.error('Send Login OTP Error:', error);
-      
+
       if (error.response?.data) {
         const errorData = error.response.data;
-        
+
         if (errorData.non_field_errors) {
-          throw new Error(Array.isArray(errorData.non_field_errors) 
-            ? errorData.non_field_errors.join(', ') 
+          throw new Error(Array.isArray(errorData.non_field_errors)
+            ? errorData.non_field_errors.join(', ')
             : errorData.non_field_errors);
         }
-        
+
         if (errorData.login_field) {
-          throw new Error(Array.isArray(errorData.login_field) 
-            ? errorData.login_field.join(', ') 
+          throw new Error(Array.isArray(errorData.login_field)
+            ? errorData.login_field.join(', ')
             : errorData.login_field);
         }
-        
+
         throw new Error(errorData.error || errorData.message || 'Failed to send login OTP');
       }
-      
+
       throw new Error(error.message || 'Failed to send login OTP. Please try again.');
     }
   }
@@ -397,35 +397,35 @@ class AuthService {
   }): Promise<LoginResponse> {
     try {
       const response = await apiClient.post(API_ENDPOINTS.VERIFY_LOGIN_OTP, data);
-      
+
       const result = response.data as LoginResponse;
-      
+
       // Store tokens and user data
       await this.storeTokens(result.tokens);
       await this.storeUser(result.user);
-      
+
       return result;
     } catch (error: any) {
       console.error('Verify Login OTP Error:', error);
-      
+
       if (error.response?.data) {
         const errorData = error.response.data;
-        
+
         if (errorData.non_field_errors) {
-          throw new Error(Array.isArray(errorData.non_field_errors) 
-            ? errorData.non_field_errors.join(', ') 
+          throw new Error(Array.isArray(errorData.non_field_errors)
+            ? errorData.non_field_errors.join(', ')
             : errorData.non_field_errors);
         }
-        
+
         if (errorData.otp_code) {
-          throw new Error(Array.isArray(errorData.otp_code) 
-            ? errorData.otp_code.join(', ') 
+          throw new Error(Array.isArray(errorData.otp_code)
+            ? errorData.otp_code.join(', ')
             : errorData.otp_code);
         }
-        
+
         throw new Error(errorData.error || errorData.message || 'Invalid OTP');
       }
-      
+
       throw new Error(error.message || 'OTP verification failed. Please try again.');
     }
   }
@@ -437,25 +437,25 @@ class AuthService {
       return response.data as ForgotPasswordOTPResponse;
     } catch (error: any) {
       console.error('Send Forgot Password OTP Error:', error);
-      
+
       if (error.response?.data) {
         const errorData = error.response.data;
-        
+
         if (errorData.non_field_errors) {
-          throw new Error(Array.isArray(errorData.non_field_errors) 
-            ? errorData.non_field_errors.join(', ') 
+          throw new Error(Array.isArray(errorData.non_field_errors)
+            ? errorData.non_field_errors.join(', ')
             : errorData.non_field_errors);
         }
-        
+
         if (errorData.login_field) {
-          throw new Error(Array.isArray(errorData.login_field) 
-            ? errorData.login_field.join(', ') 
+          throw new Error(Array.isArray(errorData.login_field)
+            ? errorData.login_field.join(', ')
             : errorData.login_field);
         }
-        
+
         throw new Error(errorData.error || errorData.message || 'Failed to send password reset OTP');
       }
-      
+
       throw new Error(error.message || 'Failed to send password reset OTP. Please try again.');
     }
   }
@@ -471,25 +471,25 @@ class AuthService {
       return response.data as { message: string; reset_token: string };
     } catch (error: any) {
       console.error('Verify Forgot Password OTP Error:', error);
-      
+
       if (error.response?.data) {
         const errorData = error.response.data;
-        
+
         if (errorData.otp_code) {
-          throw new Error(Array.isArray(errorData.otp_code) 
-            ? errorData.otp_code.join(', ') 
+          throw new Error(Array.isArray(errorData.otp_code)
+            ? errorData.otp_code.join(', ')
             : errorData.otp_code);
         }
-        
+
         if (errorData.non_field_errors) {
-          throw new Error(Array.isArray(errorData.non_field_errors) 
-            ? errorData.non_field_errors.join(', ') 
+          throw new Error(Array.isArray(errorData.non_field_errors)
+            ? errorData.non_field_errors.join(', ')
             : errorData.non_field_errors);
         }
-        
+
         throw new Error(errorData.error || errorData.message || 'OTP verification failed');
       }
-      
+
       throw new Error(error.message || 'OTP verification failed. Please try again.');
     }
   }
@@ -505,31 +505,31 @@ class AuthService {
       return response.data as { message: string };
     } catch (error: any) {
       console.error('Confirm Password Reset Error:', error);
-      
+
       if (error.response?.data) {
         const errorData = error.response.data;
-        
+
         if (errorData.new_password) {
-          throw new Error(Array.isArray(errorData.new_password) 
-            ? errorData.new_password.join(', ') 
+          throw new Error(Array.isArray(errorData.new_password)
+            ? errorData.new_password.join(', ')
             : errorData.new_password);
         }
-        
+
         if (errorData.confirm_password) {
-          throw new Error(Array.isArray(errorData.confirm_password) 
-            ? errorData.confirm_password.join(', ') 
+          throw new Error(Array.isArray(errorData.confirm_password)
+            ? errorData.confirm_password.join(', ')
             : errorData.confirm_password);
         }
-        
+
         if (errorData.non_field_errors) {
-          throw new Error(Array.isArray(errorData.non_field_errors) 
-            ? errorData.non_field_errors.join(', ') 
+          throw new Error(Array.isArray(errorData.non_field_errors)
+            ? errorData.non_field_errors.join(', ')
             : errorData.non_field_errors);
         }
-        
+
         throw new Error(errorData.error || errorData.message || 'Password reset failed');
       }
-      
+
       throw new Error(error.message || 'Password reset failed. Please try again.');
     }
   }
@@ -539,7 +539,7 @@ class AuthService {
     // Clean and format phone number
     const cleanPhone = formValues.phoneNumber.replace(/[^\d+]/g, ''); // Remove spaces, dashes etc
     let formattedPhone = '';
-    
+
     if (cleanPhone.startsWith('+91')) {
       formattedPhone = cleanPhone; // Already has +91
     } else if (cleanPhone.startsWith('91') && cleanPhone.length === 12) {
@@ -553,21 +553,21 @@ class AuthService {
     // Convert date to YYYY-MM-DD format (Django requirement)
     const convertToISODate = (dateString: string): string => {
       if (!dateString) return '';
-      
+
       let birthDate: Date;
-      
+
       // Detect date format and parse accordingly (same logic as frontend validation)
       if (dateString.includes('/')) {
         // Check if it's DD/MM/YYYY or MM/DD/YYYY or YYYY/MM/DD
         const parts = dateString.split('/');
-        
+
         if (parts.length !== 3) return dateString; // Return as-is if invalid
-        
+
         const [first, second, third] = parts.map(p => parseInt(p, 10));
-        
+
         // Check for invalid numbers
         if (isNaN(first) || isNaN(second) || isNaN(third)) return dateString;
-        
+
         // Determine format based on values
         if (third > 31 && third > 12) {
           // Third part is year (YYYY/MM/DD or YYYY/DD/MM)
@@ -595,11 +595,11 @@ class AuthService {
         // ISO format YYYY-MM-DD or variants
         const parts = dateString.split('-');
         if (parts.length !== 3) return dateString;
-        
+
         const [first, second, third] = parts.map(p => parseInt(p, 10));
-        
+
         if (isNaN(first) || isNaN(second) || isNaN(third)) return dateString;
-        
+
         if (first > 31) {
           // YYYY-MM-DD format (already correct)
           return dateString;
@@ -611,15 +611,15 @@ class AuthService {
         // Try to parse as-is
         birthDate = new Date(dateString);
       }
-      
+
       // Check if the date is valid
       if (isNaN(birthDate.getTime())) return dateString; // Return as-is if invalid
-      
+
       // Convert to YYYY-MM-DD format
       const year = birthDate.getFullYear();
       const month = String(birthDate.getMonth() + 1).padStart(2, '0');
       const day = String(birthDate.getDate()).padStart(2, '0');
-      
+
       return `${year}-${month}-${day}`;
     };
 
@@ -630,13 +630,13 @@ class AuthService {
       username: formValues.username.toLowerCase().trim(),
       password: formValues.password,
       confirm_password: formValues.confirmPassword, // Django expects 'confirm_password'
-      
+
       // Profile Info
       phone_number: formattedPhone,
       dob: convertToISODate(formValues.dob), // Convert to YYYY-MM-DD format
       profile_picture: formValues.profilePicture?.url || null, // Cloudinary URL
       aadhaar_number: formValues.aadhaarNumber,
-      
+
       // Address Info
       permanent_address: {
         address: formValues.permanentAddress.address.trim(),
@@ -644,25 +644,25 @@ class AuthService {
         city: formValues.permanentAddress.city.trim(),
         pin: formValues.permanentAddress.pin,
       },
-      current_address: formValues.sameAsPermanent 
+      current_address: formValues.sameAsPermanent
         ? {
-            address: formValues.permanentAddress.address.trim(),
-            state: formValues.permanentAddress.state,
-            city: formValues.permanentAddress.city.trim(),
-            pin: formValues.permanentAddress.pin,
-          }
+          address: formValues.permanentAddress.address.trim(),
+          state: formValues.permanentAddress.state,
+          city: formValues.permanentAddress.city.trim(),
+          pin: formValues.permanentAddress.pin,
+        }
         : {
-            address: formValues.currentAddress.address.trim(),
-            state: formValues.currentAddress.state,
-            city: formValues.currentAddress.city.trim(),
-            pin: formValues.currentAddress.pin,
-          },
+          address: formValues.currentAddress.address.trim(),
+          state: formValues.currentAddress.state,
+          city: formValues.currentAddress.city.trim(),
+          pin: formValues.currentAddress.pin,
+        },
       same_as_permanent: formValues.sameAsPermanent,
-      
+
       // Preferences
       language: formValues.language, // Django expects 'language', not 'preferred_language'
       referral_code: formValues.referralCode?.trim() || undefined,
-      
+
       // Agreements - Django expects 'agreements' as a dict
       agreements: formValues.agreements,
     };

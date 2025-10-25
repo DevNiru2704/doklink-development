@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration
 const API_BASE_URL = __DEV__
-  ? 'http://10.245.195.230:8000'  // Your computer's IP for Expo Go. 
+  ? 'http://10.215.181.230:8000'  // Your computer's IP for Expo Go. 
   : 'https://your-production-domain.com';  // Production
 
 // Alternative URLs for different environments:
@@ -14,7 +14,7 @@ const API_BASE_URL = __DEV__
 
 // Create axios instance
 const apiClient = axios.create({
-  baseURL: `${API_BASE_URL}/api/v1/auth`,
+  baseURL: `${API_BASE_URL}/api/v1`,
   timeout: 30000, // 30 seconds
   headers: {
     'Content-Type': 'application/json',
@@ -283,27 +283,27 @@ export const INDIAN_STATES = [
 // API endpoints for authentication and verification
 export const API_ENDPOINTS = {
   // Authentication
-  SIGNUP: '/signup/',
-  LOGIN: '/login/',
-  PROFILE: '/profile/',
+  SIGNUP: '/auth/signup/',
+  LOGIN: '/auth/login/',
+  PROFILE: '/auth/profile/',
 
   // Login OTP
-  GET_USERNAME_OTP_OPTIONS: '/get-username-otp-options/',
-  SEND_LOGIN_OTP: '/send-login-otp/',
-  VERIFY_LOGIN_OTP: '/verify-login-otp/',
+  GET_USERNAME_OTP_OPTIONS: '/auth/get-username-otp-options/',
+  SEND_LOGIN_OTP: '/auth/send-login-otp/',
+  VERIFY_LOGIN_OTP: '/auth/verify-login-otp/',
 
   // Email/Phone Verification
-  VERIFY_EMAIL: '/verify-email/',
-  VERIFY_PHONE: '/verify-phone/',
-  SEND_PHONE_OTP: '/send-phone-otp/',
-  CHECK_VERIFICATION_STATUS: '/check-verification-status/',
+  VERIFY_EMAIL: '/auth/verify-email/',
+  VERIFY_PHONE: '/auth/verify-phone/',
+  SEND_PHONE_OTP: '/auth/send-phone-otp/',
+  CHECK_VERIFICATION_STATUS: '/auth/check-verification-status/',
 
   // Password Reset
-  RESET_PASSWORD_REQUEST: '/reset-password-request/',
-  RESET_PASSWORD_CONFIRM: '/reset-password-confirm/',
-  SEND_FORGOT_PASSWORD_OTP: '/send-forgot-password-otp/',
-  VERIFY_FORGOT_PASSWORD_OTP: '/verify-forgot-password-otp/',
-  CONFIRM_PASSWORD_RESET: '/confirm-password-reset/',
+  RESET_PASSWORD_REQUEST: '/auth/reset-password-request/',
+  RESET_PASSWORD_CONFIRM: '/auth/reset-password-confirm/',
+  SEND_FORGOT_PASSWORD_OTP: '/auth/send-forgot-password-otp/',
+  VERIFY_FORGOT_PASSWORD_OTP: '/auth/verify-forgot-password-otp/',
+  CONFIRM_PASSWORD_RESET: '/auth/confirm-password-reset/',
 };
 
 export default apiClient;

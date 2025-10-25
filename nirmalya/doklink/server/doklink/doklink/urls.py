@@ -39,6 +39,14 @@ def api_root(request):
                 'profile': '/api/v1/auth/profile/',
                 'token_refresh': '/api/v1/auth/token/refresh/',
                 'health': '/api/v1/auth/health/',
+            },
+            'healthcare': {
+                'dashboard': '/api/v1/healthcare/dashboard/',
+                'treatments': '/api/v1/healthcare/treatments/',
+                'bookings': '/api/v1/healthcare/bookings/',
+                'payments': '/api/v1/healthcare/payments/',
+                'doctors': '/api/v1/healthcare/doctors/',
+                'hospitals': '/api/v1/healthcare/hospitals/',
             }
         }
     })
@@ -53,6 +61,7 @@ urlpatterns = [
     
     # API endpoints
     path('api/v1/auth/', include('app_auth.urls')),
+    path('api/v1/healthcare/', include('healthcare.urls')),
     
     # Development tools (always keep last)
     path('__reload__/', include('django_browser_reload.urls'))
