@@ -26,11 +26,20 @@ export default function TabLayout() {
             }}
         >
             <Tabs.Screen
+                name="Home"
+                options={{
+                    title: 'Emergency',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="medical" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
                 name="Dashboard"
                 options={{
                     title: 'Dashboard',
                     tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="home" size={size} color={color} />
+                        <Ionicons name="grid" size={size} color={color} />
                     ),
                 }}
             />
@@ -46,16 +55,10 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="MySpace"
                 options={{
-                    title: 'My Space',
+                    title: 'Profile',
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="person" size={size} color={color} />
                     ),
-                }}
-            />
-            <Tabs.Screen
-                name="Home"
-                options={{
-                    href: null, // Hide from tabs
                 }}
             />
         </Tabs>

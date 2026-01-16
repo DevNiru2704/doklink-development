@@ -1,15 +1,19 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q, Sum, Prefetch
+from django.db.models import Q, Sum, Prefetch, F
 from django.utils import timezone
 from datetime import timedelta
+from math import radians, sin, cos, sqrt, atan2
 
-from .models import Doctor, Hospital, Treatment, Booking, Payment
+from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking
 from .serializers import (
     DoctorSerializer, HospitalSerializer, TreatmentSerializer,
-    BookingSerializer, PaymentSerializer, DashboardSerializer
+    BookingSerializer, PaymentSerializer, DashboardSerializer,
+    EmergencyBookingSerializer, EmergencyTriggerSerializer,
+    NearbyHospitalSerializer, BookEmergencyBedSerializer,
+    UpdateBookingStatusSerializer
 )
 
 
@@ -244,3 +248,291 @@ class DashboardViewSet(viewsets.ViewSet):
     def list(self, request):
         """Default list action redirects to summary"""
         return self.summary(request)
+
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate distance between two points using Haversine formula
+    Returns distance in kilometers
+    """
+    # Convert to radians
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    
+    # Earth radius in kilometers
+    radius = 6371
+    distance = radius * c
+    
+    return distance
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def trigger_emergency(request):
+    """
+    Trigger emergency and get immediate response with nearby hospitals
+    POST /api/v1/healthcare/emergency/trigger/
+    """
+    serializer = EmergencyTriggerSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    latitude = float(serializer.validated_data['latitude'])
+    longitude = float(serializer.validated_data['longitude'])
+    
+    # Get hospitals with available beds
+    hospitals = Hospital.objects.filter(
+        latitude__isnull=False,
+        longitude__isnull=False
+    ).filter(
+        Q(available_general_beds__gt=0) | Q(available_icu_beds__gt=0)
+    )
+    
+    # Calculate distances and filter by radius (50km)
+    nearby_hospitals = []
+    for hospital in hospitals:
+        distance = calculate_distance(
+            latitude, longitude,
+            float(hospital.latitude), float(hospital.longitude)
+        )
+        
+        if distance <= 50:  # 50km radius
+            # Estimate travel time (average 40 km/h in emergency)
+            estimated_time = int((distance / 40) * 60)  # minutes
+            
+            hospital_data = HospitalSerializer(hospital).data
+            hospital_data['distance'] = round(distance, 2)
+            hospital_data['estimated_time'] = estimated_time
+            nearby_hospitals.append(hospital_data)
+    
+    # Sort by distance
+    nearby_hospitals.sort(key=lambda x: x['distance'])
+    
+    return Response({
+        'success': True,
+        'message': 'Emergency triggered successfully',
+        'nearby_hospitals': nearby_hospitals[:10],  # Top 10 closest
+        'emergency_number': '108',  # India emergency number
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_nearby_hospitals(request):
+    """
+    Get nearby hospitals with bed availability
+    GET /api/v1/healthcare/hospitals/nearby/
+    """
+    serializer = NearbyHospitalSerializer(data=request.query_params)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    latitude = float(serializer.validated_data['latitude'])
+    longitude = float(serializer.validated_data['longitude'])
+    radius_km = serializer.validated_data.get('radius_km', 10.0)
+    bed_type = serializer.validated_data.get('bed_type', 'all')
+    
+    # Filter hospitals with coordinates
+    hospitals = Hospital.objects.filter(
+        latitude__isnull=False,
+        longitude__isnull=False
+    )
+    
+    # Filter by bed availability
+    if bed_type == 'general':
+        hospitals = hospitals.filter(available_general_beds__gt=0)
+    elif bed_type == 'icu':
+        hospitals = hospitals.filter(available_icu_beds__gt=0)
+    elif bed_type == 'all':
+        hospitals = hospitals.filter(
+            Q(available_general_beds__gt=0) | Q(available_icu_beds__gt=0)
+        )
+    
+    # Calculate distances
+    nearby_hospitals = []
+    for hospital in hospitals:
+        distance = calculate_distance(
+            latitude, longitude,
+            float(hospital.latitude), float(hospital.longitude)
+        )
+        
+        if distance <= radius_km:
+            estimated_time = int((distance / 40) * 60)  # minutes at 40 km/h
+            
+            hospital_data = HospitalSerializer(hospital).data
+            hospital_data['distance'] = round(distance, 2)
+            hospital_data['estimated_time'] = estimated_time
+            nearby_hospitals.append(hospital_data)
+    
+    # Sort by distance
+    nearby_hospitals.sort(key=lambda x: x['distance'])
+    
+    return Response(nearby_hospitals)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def book_emergency_bed(request):
+    """
+    Book an emergency bed at a hospital
+    POST /api/v1/healthcare/emergency/book-bed/
+    """
+    serializer = BookEmergencyBedSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    hospital_id = serializer.validated_data['hospital_id']
+    bed_type = serializer.validated_data['bed_type']
+    
+    try:
+        hospital = Hospital.objects.get(id=hospital_id)
+    except Hospital.DoesNotExist:
+        return Response(
+            {'error': 'Hospital not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # Check bed availability
+    if bed_type == 'general' and hospital.available_general_beds <= 0:
+        return Response(
+            {'error': 'No general beds available'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    elif bed_type == 'icu' and hospital.available_icu_beds <= 0:
+        return Response(
+            {'error': 'No ICU beds available'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Calculate estimated arrival time
+    user_lat = float(serializer.validated_data['latitude'])
+    user_lon = float(serializer.validated_data['longitude'])
+    distance = calculate_distance(
+        user_lat, user_lon,
+        float(hospital.latitude), float(hospital.longitude)
+    )
+    estimated_arrival_minutes = int((distance / 40) * 60)
+    
+    # Create emergency booking
+    emergency_booking = EmergencyBooking.objects.create(
+        user=request.user,
+        hospital=hospital,
+        emergency_type=serializer.validated_data['emergency_type'],
+        bed_type=bed_type,
+        patient_condition=serializer.validated_data['patient_condition'],
+        contact_person=serializer.validated_data['contact_person'],
+        contact_phone=serializer.validated_data['contact_phone'],
+        booking_latitude=user_lat,
+        booking_longitude=user_lon,
+        estimated_arrival_minutes=estimated_arrival_minutes,
+        notes=serializer.validated_data.get('notes', ''),
+        reservation_expires_at=timezone.now() + timedelta(minutes=30)
+    )
+    
+    # Decrease bed availability
+    if bed_type == 'general':
+        hospital.available_general_beds = F('available_general_beds') - 1
+    else:
+        hospital.available_icu_beds = F('available_icu_beds') - 1
+    hospital.save()
+    hospital.refresh_from_db()
+    
+    return Response(
+        EmergencyBookingSerializer(emergency_booking).data,
+        status=status.HTTP_201_CREATED
+    )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_emergency_booking(request, booking_id):
+    """
+    Get emergency booking details
+    GET /api/v1/healthcare/emergency/booking/{id}/
+    """
+    try:
+        booking = EmergencyBooking.objects.select_related('hospital').get(
+            id=booking_id,
+            user=request.user
+        )
+        return Response(EmergencyBookingSerializer(booking).data)
+    except EmergencyBooking.DoesNotExist:
+        return Response(
+            {'error': 'Booking not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_booking_status(request, booking_id):
+    """
+    Update emergency booking status
+    PUT /api/v1/healthcare/emergency/booking/{id}/status/
+    """
+    try:
+        booking = EmergencyBooking.objects.select_related('hospital').get(
+            id=booking_id,
+            user=request.user
+        )
+    except EmergencyBooking.DoesNotExist:
+        return Response(
+            {'error': 'Booking not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    serializer = UpdateBookingStatusSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    new_status = serializer.validated_data['status']
+    notes = serializer.validated_data.get('notes', '')
+    
+    # Update status and relevant fields
+    booking.status = new_status
+    
+    if new_status == 'arrived':
+        booking.arrival_time = timezone.now()
+    elif new_status == 'admitted':
+        booking.admission_time = timezone.now()
+    elif new_status == 'cancelled':
+        booking.cancellation_reason = notes
+        # Release bed
+        hospital = booking.hospital
+        if booking.bed_type == 'general':
+            hospital.available_general_beds = F('available_general_beds') + 1
+        else:
+            hospital.available_icu_beds = F('available_icu_beds') + 1
+        hospital.save()
+    
+    if notes:
+        booking.notes = notes
+    
+    booking.save()
+    booking.refresh_from_db()
+    
+    return Response(EmergencyBookingSerializer(booking).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_active_booking(request):
+    """
+    Get user's active emergency booking
+    GET /api/v1/healthcare/emergency/active/
+    """
+    booking = EmergencyBooking.objects.filter(
+        user=request.user,
+        status__in=['reserved', 'patient_on_way', 'arrived']
+    ).select_related('hospital').order_by('-created_at').first()
+    
+    if booking:
+        return Response(EmergencyBookingSerializer(booking).data)
+    else:
+        return Response({'message': 'No active booking'}, status=status.HTTP_404_NOT_FOUND)
+

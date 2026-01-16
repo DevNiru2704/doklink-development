@@ -235,9 +235,9 @@ export default function App() {
     );
   }
 
-  // If user is authenticated and doesn't need permissions, redirect to Dashboard
+  // If user is authenticated and doesn't need permissions, redirect to Home (Emergency)
   if (isAuthenticated && !needsPermissions) {
-    return <Redirect href="/(tabs)/Dashboard" />;
+    return <Redirect href="/(tabs)/Home" />;
   }
 
   // If not authenticated, show StartingScreen

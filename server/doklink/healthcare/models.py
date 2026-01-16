@@ -51,6 +51,18 @@ class Hospital(models.Model):
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     
+    # Emergency bed availability
+    total_general_beds = models.IntegerField(default=0, help_text="Total general beds in hospital")
+    available_general_beds = models.IntegerField(default=0, help_text="Currently available general beds")
+    total_icu_beds = models.IntegerField(default=0, help_text="Total ICU beds in hospital")
+    available_icu_beds = models.IntegerField(default=0, help_text="Currently available ICU beds")
+    
+    # Insurance and cost estimates
+    accepts_insurance = models.BooleanField(default=True)
+    insurance_providers = models.TextField(blank=True, help_text="Comma-separated list of accepted insurance providers")
+    estimated_emergency_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Estimated cost for emergency admission")
+    estimated_general_admission_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Estimated cost for general admission")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -60,6 +72,8 @@ class Hospital(models.Model):
         indexes = [
             models.Index(fields=['name']),
             models.Index(fields=['city', 'state']),
+            models.Index(fields=['available_general_beds']),
+            models.Index(fields=['available_icu_beds']),
         ]
 
     def __str__(self):
@@ -147,6 +161,81 @@ class Booking(models.Model):
 
     def __str__(self):
         return f"{self.get_booking_type_display()} - {self.user.username} on {self.booking_date}"
+
+
+class EmergencyBooking(models.Model):
+    """Emergency bed bookings with real-time status tracking"""
+    EMERGENCY_TYPE_CHOICES = [
+        ('accident', 'Accident/Trauma'),
+        ('cardiac', 'Cardiac Emergency'),
+        ('stroke', 'Stroke'),
+        ('respiratory', 'Respiratory Emergency'),
+        ('pregnancy', 'Pregnancy Emergency'),
+        ('poisoning', 'Poisoning'),
+        ('burns', 'Burns'),
+        ('pediatric', 'Pediatric Emergency'),
+        ('other', 'Other Medical Emergency'),
+    ]
+
+    STATUS_CHOICES = [
+        ('reserved', 'Bed Reserved'),
+        ('patient_on_way', 'Patient On the Way'),
+        ('arrived', 'Patient Arrived'),
+        ('admitted', 'Admitted'),
+        ('cancelled', 'Cancelled'),
+        ('expired', 'Reservation Expired'),
+    ]
+
+    BED_TYPE_CHOICES = [
+        ('general', 'General Bed'),
+        ('icu', 'ICU Bed'),
+    ]
+
+    # Core relationships
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='emergency_bookings')
+    hospital = models.ForeignKey(Hospital, on_delete=models.CASCADE, related_name='emergency_bookings')
+    booking = models.OneToOneField(Booking, on_delete=models.CASCADE, null=True, blank=True, related_name='emergency_details')
+    
+    # Emergency details
+    emergency_type = models.CharField(max_length=20, choices=EMERGENCY_TYPE_CHOICES)
+    bed_type = models.CharField(max_length=10, choices=BED_TYPE_CHOICES, default='general')
+    patient_condition = models.TextField(help_text="Brief description of patient's condition")
+    
+    # Contact information
+    contact_person = models.CharField(max_length=200, help_text="Name of contact person")
+    contact_phone = PhoneNumberField(help_text="Contact person's phone number")
+    
+    # Status and timing
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='reserved')
+    reservation_expires_at = models.DateTimeField(help_text="Reservation expiry time (30 minutes from booking)")
+    arrival_time = models.DateTimeField(null=True, blank=True, help_text="Actual arrival time at hospital")
+    admission_time = models.DateTimeField(null=True, blank=True, help_text="Time patient was admitted")
+    
+    # Location tracking
+    booking_latitude = models.DecimalField(max_digits=9, decimal_places=6, help_text="User's location when booking")
+    booking_longitude = models.DecimalField(max_digits=9, decimal_places=6, help_text="User's location when booking")
+    estimated_arrival_minutes = models.IntegerField(default=30, help_text="Estimated travel time in minutes")
+    
+    # Additional information
+    notes = models.TextField(blank=True)
+    cancellation_reason = models.TextField(blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Emergency Booking"
+        verbose_name_plural = "Emergency Bookings"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['hospital', 'status']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['reservation_expires_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_emergency_type_display()} - {self.user.username} at {self.hospital.name}"
 
 
 class Payment(models.Model):

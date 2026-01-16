@@ -4,7 +4,7 @@ import axios from 'axios';
 
 // API Configuration - same as api.ts
 const API_BASE_URL = __DEV__
-  ? 'http://10.215.181.230:8000'  // Your computer's IP for Expo Go
+  ? 'http://192.168.1.107:8000'  // Your computer's IP for Expo Go
   : 'https://your-production-domain.com';  // Production
 
 export interface CloudinaryConfig {
@@ -29,7 +29,7 @@ let cloudinaryConfig: CloudinaryConfig | null = null;
 export async function fetchCloudinaryConfig(): Promise<CloudinaryConfig> {
   try {
     // Use the backend API endpoint with axios
-    const response = await axios.get(`${API_BASE_URL}/api/v1/auth/cloudinary-config/`);
+    const response = await axios.post(`${API_BASE_URL}/api/v1/auth/cloudinary-config/`);
 
     const data = response.data as CloudinaryConfigResponse;
 

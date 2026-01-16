@@ -25,6 +25,7 @@ import FilesPermissionComponent from "../../components/permissions/FilesPermissi
 import NetworkBackgroundImage from "../../assets/images/network_background.png";
 import NetworkBackgroundImageLight from "../../assets/images/light_background.png";
 import useThemedStyles from "../../styles/AppPermission";
+import { usePermissionStore } from "../../store/permissionStore";
 
 interface AppPermissionProps {
   onAllPermissionsGranted: () => void;
@@ -53,6 +54,15 @@ export default function AppPermission({
   const colorScheme = useColorScheme();
   const styles = useThemedStyles();
 
+  // Use permission store
+  const {
+    checkLocationPermission,
+    checkFilesPermission,
+    setLocationPermission,
+    setFilesPermission,
+    initializePermissions
+  } = usePermissionStore();
+
   // Define all possible permissions using useMemo to prevent re-creation
   const allPermissions: PermissionItem[] = useMemo(
     () => [
@@ -60,8 +70,7 @@ export default function AppPermission({
         id: "location",
         component: LocationPermissionComponent,
         checkPermission: async () => {
-          const { status } = await Location.getForegroundPermissionsAsync();
-          return status === "granted";
+          return (await checkLocationPermission()) === 'granted';
         },
         requestPermission: async () => {
           try {
@@ -71,10 +80,8 @@ export default function AppPermission({
 
             const granted = result.status === "granted";
 
-            await AsyncStorage.setItem(
-              "permission_location",
-              granted ? "granted" : "denied"
-            );
+            // Update store (which also updates AsyncStorage)
+            setLocationPermission(granted ? 'granted' : 'denied');
 
             console.log(
               "Location permission stored:",
@@ -83,7 +90,7 @@ export default function AppPermission({
             return granted;
           } catch (error) {
             console.error("Location permission request error:", error);
-            await AsyncStorage.setItem("permission_location", "denied");
+            setLocationPermission('denied');
             return false;
           }
         },
@@ -92,28 +99,7 @@ export default function AppPermission({
         id: "files",
         component: FilesPermissionComponent,
         checkPermission: async () => {
-          try {
-            const mediaResult = await MediaLibrary.getPermissionsAsync();
-            const mediaGranted = mediaResult.status === "granted";
-
-            const imageResult = await ImagePicker.getMediaLibraryPermissionsAsync();
-            const imageGranted = imageResult.status === "granted";
-
-            const filePermissionGranted = mediaGranted && imageGranted;
-            
-            console.log("File permission check:", {
-              mediaStatus: mediaResult.status,
-              mediaGranted,
-              imageStatus: imageResult.status, 
-              imageGranted,
-              filePermissionGranted
-            });
-
-            return filePermissionGranted;
-          } catch (error) {
-            console.error("File permission check error:", error);
-            return false;
-          }
+          return (await checkFilesPermission()) === 'granted';
         },
         requestPermission: async () => {
           try {
@@ -125,7 +111,7 @@ export default function AppPermission({
 
             if (audioResult.status !== "granted") {
               console.log("Music & audio permission denied");
-              await AsyncStorage.setItem("permission_files", "denied");
+              setFilesPermission('denied');
               return false;
             }
 
@@ -136,7 +122,7 @@ export default function AppPermission({
 
             if (photoResult.status !== "granted") {
               console.log("Photos & videos permission denied");
-              await AsyncStorage.setItem("permission_files", "denied");
+              setFilesPermission('denied');
               return false;
             }
 
@@ -150,27 +136,27 @@ export default function AppPermission({
               console.log("Directory access result:", directoryUri);
 
               if (directoryUri.granted) {
-                await AsyncStorage.setItem("permission_files", "granted");
                 await AsyncStorage.setItem(
                   "selected_directory_uri",
                   directoryUri.directoryUri
                 );
+                setFilesPermission('granted');
 
                 console.log("All file permissions granted successfully!");
                 return true;
               } else {
                 console.log("Directory access denied");
-                await AsyncStorage.setItem("permission_files", "denied");
+                setFilesPermission('denied');
                 return false;
               }
             } catch (directoryError) {
               console.log("Directory access error:", directoryError);
-              await AsyncStorage.setItem("permission_files", "granted");
+              setFilesPermission('granted');
               return true;
             }
           } catch (error) {
             console.log("File permission request failed:", error);
-            await AsyncStorage.setItem("permission_files", "denied");
+            setFilesPermission('denied');
             return false;
           }
         },
@@ -181,6 +167,10 @@ export default function AppPermission({
 
   const checkPendingPermissions = useCallback(async () => {
     setIsLoading(true);
+
+    // Initialize permissions in store first
+    await initializePermissions();
+
     const pending: PermissionItem[] = [];
 
     for (const permission of allPermissions) {
@@ -192,7 +182,7 @@ export default function AppPermission({
 
     setPendingPermissions(pending);
     setIsLoading(false);
-  }, [allPermissions]);
+  }, [allPermissions, initializePermissions]);
 
   useEffect(() => {
     checkPendingPermissions();
@@ -208,31 +198,31 @@ export default function AppPermission({
 
   const handleAllow = async () => {
     if (isProcessing) return; // Prevent multiple simultaneous requests
-    
+
     const currentPermission = pendingPermissions[currentIndex];
     if (!currentPermission) return;
 
     setIsProcessing(true);
-    
+
     try {
       console.log(`Requesting permission for: ${currentPermission.id}`);
       const granted = await currentPermission.requestPermission();
-      
+
       console.log(`Permission result for ${currentPermission.id}:`, granted);
-      
+
       // Store the actual state
       await AsyncStorage.setItem(
         `permission_${currentPermission.id}`,
         granted ? "granted" : "denied"
       );
-      
+
       // Remove the current permission from pending list
       const newPendingPermissions = pendingPermissions.filter(
         (_, index) => index !== currentIndex
       );
-      
+
       setPendingPermissions(newPendingPermissions);
-      
+
       // Adjust currentIndex if necessary
       if (currentIndex >= newPendingPermissions.length && newPendingPermissions.length > 0) {
         setCurrentIndex(newPendingPermissions.length - 1);
@@ -244,21 +234,21 @@ export default function AppPermission({
           animated: true,
         });
       }
-      
+
     } catch (error) {
       console.log("Permission request error:", error);
       await AsyncStorage.setItem(
         `permission_${currentPermission.id}`,
         "denied"
       );
-      
+
       // Remove the current permission from pending list even if error occurred
       const newPendingPermissions = pendingPermissions.filter(
         (_, index) => index !== currentIndex
       );
-      
+
       setPendingPermissions(newPendingPermissions);
-      
+
       // Adjust currentIndex if necessary
       if (currentIndex >= newPendingPermissions.length && newPendingPermissions.length > 0) {
         setCurrentIndex(newPendingPermissions.length - 1);
@@ -270,20 +260,20 @@ export default function AppPermission({
 
   const handleNext = () => {
     if (isProcessing) return; // Prevent actions while processing
-    
+
     const currentPermission = pendingPermissions[currentIndex];
     if (!currentPermission) return;
 
     // Store as denied when user chooses to continue
     AsyncStorage.setItem(`permission_${currentPermission.id}`, "denied");
-    
+
     // Remove the current permission from pending list
     const newPendingPermissions = pendingPermissions.filter(
       (_, index) => index !== currentIndex
     );
-    
+
     setPendingPermissions(newPendingPermissions);
-    
+
     // Adjust currentIndex if necessary
     if (currentIndex >= newPendingPermissions.length && newPendingPermissions.length > 0) {
       setCurrentIndex(newPendingPermissions.length - 1);
@@ -298,7 +288,7 @@ export default function AppPermission({
 
   const handleScroll = (event: any) => {
     if (isProcessing) return; // Prevent scroll during processing
-    
+
     const contentOffset = event.nativeEvent.contentOffset;
     const index = Math.round(contentOffset.x / screenWidth);
     setCurrentIndex(index);

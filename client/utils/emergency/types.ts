@@ -1,0 +1,161 @@
+// utils/emergency/types.ts
+// TypeScript types and interfaces for emergency booking system
+
+export interface Location {
+    latitude: number;
+    longitude: number;
+}
+
+export interface Hospital {
+    id: number;
+    name: string;
+    address: string;
+    city: string;
+    state: string;
+    pin_code: string;
+    phone_number?: string;
+    email?: string;
+    website?: string;
+    latitude: number;
+    longitude: number;
+    distance?: number; // Distance in km from user's location
+    estimated_time?: number; // Estimated travel time in minutes
+
+    // Bed availability
+    total_general_beds?: number;
+    available_general_beds?: number;
+    total_icu_beds?: number;
+    available_icu_beds?: number;
+
+    // Cost estimation
+    estimated_emergency_cost?: number;
+    estimated_general_admission_cost?: number;
+
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface NearbyHospitalResponse extends Hospital {
+    distance: number;
+    available_beds?: number;
+    accepts_insurance?: boolean;
+}
+
+export interface BedAvailability {
+    hospital_id: number;
+    general_beds: {
+        total: number;
+        available: number;
+        occupied: number;
+    };
+    icu_beds: {
+        total: number;
+        available: number;
+        occupied: number;
+    };
+    last_updated: string;
+}
+
+export interface EmergencyBookingRequest {
+    hospital_id: number;
+    emergency_type: string;
+    patient_condition?: string;
+    contact_person?: string;
+    contact_phone?: string;
+    arrival_time?: string;
+    user_location?: Location;
+    insurance_provider?: string;
+    policy_number?: string;
+    notes?: string;
+}
+
+export interface EmergencyBooking {
+    id: number;
+    hospital: Hospital;
+    booking_type: 'emergency';
+    emergency_type: string;
+    patient_condition?: string;
+    contact_person?: string;
+    contact_phone?: string;
+    status: 'reserved' | 'confirmed' | 'patient_arrived' | 'admitted' | 'cancelled' | 'expired';
+    arrival_time?: string;
+    booking_date: string;
+    booking_time: string;
+    reservation_expires_at?: string;
+    location_details?: string;
+    notes?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface BookingStatusUpdate {
+    booking_id: number;
+    status: 'reserved' | 'confirmed' | 'patient_arrived' | 'admitted' | 'cancelled';
+    notes?: string;
+}
+
+export interface EmergencyTriggerRequest {
+    location: Location;
+    emergency_type?: string;
+    radius?: number; // in km, default 5
+}
+
+export interface EmergencyTriggerResponse {
+    nearby_hospitals: NearbyHospitalResponse[];
+    user_location: Location;
+    timestamp: string;
+}
+
+// Insurance related types
+export interface Insurance {
+    id: number;
+    provider_name: string;
+    policy_number: string;
+    policy_expiry?: string;
+    coverage_type?: string;
+    is_active: boolean;
+}
+
+export interface InsuranceVerification {
+    hospital_id: number;
+    insurance_id: number;
+    is_in_network: boolean;
+    copay_amount?: number;
+    estimated_coverage?: number;
+    notes?: string;
+}
+
+// Emergency types
+export const EMERGENCY_TYPES = [
+    'Chest Pain',
+    'Difficulty Breathing',
+    'Severe Bleeding',
+    'Head Injury',
+    'Stroke Symptoms',
+    'Severe Abdominal Pain',
+    'Allergic Reaction',
+    'Fracture/Trauma',
+    'Other',
+] as const;
+
+export type EmergencyType = typeof EMERGENCY_TYPES[number];
+
+// Booking status display
+export const BOOKING_STATUS_DISPLAY: Record<EmergencyBooking['status'], string> = {
+    reserved: 'Bed Reserved',
+    confirmed: 'Booking Confirmed',
+    patient_arrived: 'Patient Arrived',
+    admitted: 'Admitted',
+    cancelled: 'Cancelled',
+    expired: 'Expired',
+};
+
+// Booking status colors
+export const BOOKING_STATUS_COLORS: Record<EmergencyBooking['status'], string> = {
+    reserved: '#FFA500', // Orange
+    confirmed: '#10B981', // Green
+    patient_arrived: '#3B82F6', // Blue
+    admitted: '#8B5CF6', // Purple
+    cancelled: '#EF4444', // Red
+    expired: '#6B7280', // Gray
+};
