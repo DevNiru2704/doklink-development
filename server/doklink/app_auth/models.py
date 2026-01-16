@@ -154,6 +154,32 @@ class UserProfile(models.Model):
     data_consent_given = models.BooleanField(default=False)
     notifications_enabled = models.BooleanField(default=False)
     
+    # Emergency Contact Information (Section 2.1)
+    emergency_contact_name = models.CharField(max_length=255, blank=True, null=True)
+    emergency_contact_phone = PhoneNumberField(blank=True, null=True)
+    
+    # Medical Information (Section 2.1 & 2.3)
+    medical_allergies = models.TextField(
+        blank=True,
+        null=True,
+        help_text="List of known allergies (medications, food, environmental)"
+    )
+    current_medications = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Current medications being taken"
+    )
+    medical_conditions = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Chronic or current medical conditions"
+    )
+    previous_surgeries = models.TextField(
+        blank=True,
+        null=True,
+        help_text="History of surgeries or major procedures"
+    )
+    
     # Account Status
     is_verified = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)

@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     DoctorViewSet, HospitalViewSet, TreatmentViewSet,
-    BookingViewSet, PaymentViewSet, DashboardViewSet,
+    BookingViewSet, PaymentViewSet, DashboardViewSet, InsuranceViewSet,
     trigger_emergency, get_nearby_hospitals, book_emergency_bed,
     get_emergency_booking, update_booking_status, get_active_booking,
     get_emergency_bookings
@@ -15,6 +15,7 @@ router.register(r'treatments', TreatmentViewSet, basename='treatment')
 router.register(r'bookings', BookingViewSet, basename='booking')
 router.register(r'payments', PaymentViewSet, basename='payment')
 router.register(r'dashboard', DashboardViewSet, basename='dashboard')
+router.register(r'insurance', InsuranceViewSet, basename='insurance')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { emergencyService } from '@/services/emergencyService';
 import { EmergencyBooking, BOOKING_STATUS_DISPLAY } from '@/utils/emergency/types';
 
-type FilterStatus = 'all' | 'reserved' | 'patient_on_way' | 'arrived' | 'admitted' | 'cancelled';
+type FilterStatus = 'all' | 'reserved' | 'arrived' | 'admitted' | 'discharged' | 'cancelled';
 
 export default function BookingHistory() {
     const router = useRouter();
@@ -67,15 +67,15 @@ export default function BookingHistory() {
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'reserved':
-                return '#FFA500';
-            case 'patient_on_way':
-                return '#10B981';
+                return '#EF4444';
             case 'arrived':
                 return '#3B82F6';
             case 'admitted':
                 return '#8B5CF6';
+            case 'discharged':
+                return '#10B981';
             case 'cancelled':
-                return '#EF4444';
+                return '#6B7280';
             case 'expired':
                 return '#6B7280';
             default:
@@ -87,12 +87,12 @@ export default function BookingHistory() {
         switch (status) {
             case 'reserved':
                 return 'time';
-            case 'patient_on_way':
-                return 'checkmark-circle';
             case 'arrived':
                 return 'location';
             case 'admitted':
                 return 'medical';
+            case 'discharged':
+                return 'checkmark-circle';
             case 'cancelled':
                 return 'close-circle';
             case 'expired':
@@ -127,7 +127,7 @@ export default function BookingHistory() {
         // Navigate to booking details - could be ActiveBooking if still active, or a separate detail screen
         if (booking.status !== 'admitted' && booking.status !== 'cancelled') {
             router.push({
-                pathname: '/pages/emergency/ActiveBooking',
+                pathname: '/pages/dashboard/ActiveBooking',
                 params: { bookingId: booking.id.toString() },
             });
         }
@@ -222,9 +222,9 @@ export default function BookingHistory() {
                     data={[
                         { label: 'All', value: 'all' as FilterStatus },
                         { label: 'Reserved', value: 'reserved' as FilterStatus },
-                        { label: 'On the Way', value: 'patient_on_way' as FilterStatus },
                         { label: 'Arrived', value: 'arrived' as FilterStatus },
                         { label: 'Admitted', value: 'admitted' as FilterStatus },
+                        { label: 'Discharged', value: 'discharged' as FilterStatus },
                         { label: 'Cancelled', value: 'cancelled' as FilterStatus },
                     ]}
                     keyExtractor={(item) => item.value}

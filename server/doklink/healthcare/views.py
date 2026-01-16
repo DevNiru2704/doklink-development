@@ -7,13 +7,13 @@ from django.utils import timezone
 from datetime import timedelta
 from math import radians, sin, cos, sqrt, atan2
 
-from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking
+from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, Insurance
 from .serializers import (
     DoctorSerializer, HospitalSerializer, TreatmentSerializer,
     BookingSerializer, PaymentSerializer, DashboardSerializer,
     EmergencyBookingSerializer, EmergencyTriggerSerializer,
     NearbyHospitalSerializer, BookEmergencyBedSerializer,
-    UpdateBookingStatusSerializer
+    UpdateBookingStatusSerializer, InsuranceSerializer
 )
 
 
@@ -182,6 +182,51 @@ class PaymentViewSet(viewsets.ModelViewSet):
         ).select_related('hospital', 'doctor').order_by('-paid_date', '-due_date')
         
         serializer = PaymentSerializer(payments, many=True)
+        return Response(serializer.data)
+
+
+class InsuranceViewSet(viewsets.ModelViewSet):
+    """ViewSet for patient insurance management (Section 2.2)"""
+    serializer_class = InsuranceSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Return insurance policies for current user"""
+        return Insurance.objects.filter(user=self.request.user).order_by('-is_active', '-created_at')
+    
+    def perform_create(self, serializer):
+        """Automatically set user when creating insurance"""
+        serializer.save(user=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Get only active insurance policies"""
+        active_policies = Insurance.objects.filter(
+            user=request.user,
+            is_active=True
+        ).order_by('-created_at')
+        
+        serializer = self.get_serializer(active_policies, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        """Deactivate an insurance policy"""
+        insurance = self.get_object()
+        insurance.is_active = False
+        insurance.save()
+        
+        serializer = self.get_serializer(insurance)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        """Reactivate an insurance policy"""
+        insurance = self.get_object()
+        insurance.is_active = True
+        insurance.save()
+        
+        serializer = self.get_serializer(insurance)
         return Response(serializer.data)
 
 
@@ -564,7 +609,7 @@ def get_active_booking(request):
     """
     booking = EmergencyBooking.objects.filter(
         user=request.user,
-        status__in=['reserved', 'patient_on_way', 'arrived']
+        status__in=['reserved', 'arrived']
     ).select_related('hospital').order_by('-created_at').first()
     
     if booking:

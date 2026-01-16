@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking
+from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, Insurance
 from django.utils import timezone
 from datetime import timedelta
 
@@ -138,4 +138,55 @@ class UpdateBookingStatusSerializer(serializers.Serializer):
     """Serializer for updating booking status"""
     status = serializers.ChoiceField(choices=EmergencyBooking.STATUS_CHOICES, required=True)
     notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class InsuranceSerializer(serializers.ModelSerializer):
+    """Serializer for Insurance model (Section 2.2)"""
+    
+    user_name = serializers.SerializerMethodField(read_only=True)
+    is_expired = serializers.SerializerMethodField(read_only=True)
+    days_until_expiry = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = Insurance
+        fields = [
+            'id', 'user', 'provider_name', 'policy_number', 'policy_expiry',
+            'coverage_type', 'coverage_amount', 'is_active', 'user_name',
+            'is_expired', 'days_until_expiry', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['user', 'created_at', 'updated_at']
+    
+    def get_user_name(self, obj):
+        """Return username"""
+        return obj.user.get_full_name() or obj.user.username
+    
+    def get_is_expired(self, obj):
+        """Check if policy is expired"""
+        from datetime import date
+        return obj.policy_expiry < date.today()
+    
+    def get_days_until_expiry(self, obj):
+        """Calculate days until expiry"""
+        from datetime import date
+        delta = obj.policy_expiry - date.today()
+        return delta.days
+    
+    def validate_policy_number(self, value):
+        """Ensure policy number is unique"""
+        if self.instance:
+            # Update case - exclude current instance
+            if Insurance.objects.exclude(pk=self.instance.pk).filter(policy_number=value).exists():
+                raise serializers.ValidationError("This policy number already exists")
+        else:
+            # Create case
+            if Insurance.objects.filter(policy_number=value).exists():
+                raise serializers.ValidationError("This policy number already exists")
+        return value
+    
+    def validate_policy_expiry(self, value):
+        """Ensure policy expiry is in the future for new policies"""
+        from datetime import date
+        if not self.instance and value < date.today():
+            raise serializers.ValidationError("Policy expiry date cannot be in the past")
+        return value
 

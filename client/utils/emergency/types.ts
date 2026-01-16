@@ -152,10 +152,10 @@ export type EmergencyType = typeof EMERGENCY_TYPES[number];
 
 // Booking status display
 export const BOOKING_STATUS_DISPLAY: Record<string, string> = {
-    reserved: 'Bed Reserved',
-    patient_on_way: 'Patient On the Way',
-    arrived: 'Patient Arrived',
+    reserved: 'Reserved',
+    arrived: 'Arrived',
     admitted: 'Admitted',
+    discharged: 'Discharged',
     cancelled: 'Cancelled',
     expired: 'Expired',
 };

@@ -17,8 +17,33 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Formik } from 'formik';
+import * as Yup from 'yup';
 import { emergencyService } from '@/services/emergencyService';
 import { EMERGENCY_TYPES } from '@/utils/emergency/types';
+
+// Validation schema
+const bookingValidationSchema = Yup.object().shape({
+    emergencyTypes: Yup.array()
+        .of(Yup.string())
+        .min(1, 'Please select at least one emergency type')
+        .required('Emergency type is required'),
+    bedType: Yup.string()
+        .oneOf(['general', 'icu'], 'Invalid bed type')
+        .required('Bed type is required'),
+    patientCondition: Yup.string()
+        .max(500, 'Patient condition must be at most 500 characters'),
+    contactPerson: Yup.string()
+        .required('Contact person name is required')
+        .min(2, 'Name must be at least 2 characters')
+        .max(100, 'Name must be at most 100 characters')
+        .matches(/^[a-zA-Z\s]+$/, 'Name must contain only letters and spaces'),
+    contactPhone: Yup.string()
+        .required('Contact phone is required')
+        .matches(/^(\+91|91)?[6-9]\d{9}$/, 'Please enter a valid Indian phone number'),
+    notes: Yup.string()
+        .max(500, 'Notes must be at most 500 characters'),
+});
 
 export default function BookingDetails() {
     const colorScheme = useColorScheme();
@@ -27,12 +52,6 @@ export default function BookingDetails() {
     const params = useLocalSearchParams();
     const styles = getStyles(isDark);
 
-    const [emergencyTypes, setEmergencyTypes] = useState<string[]>([]);
-    const [bedType, setBedType] = useState<'general' | 'icu'>('general');
-    const [patientCondition, setPatientCondition] = useState('');
-    const [contactPerson, setContactPerson] = useState('');
-    const [contactPhone, setContactPhone] = useState('');
-    const [notes, setNotes] = useState('');
     const [loading, setLoading] = useState(false);
 
     const hospitalId = parseInt(params.hospitalId as string);
@@ -45,32 +64,26 @@ export default function BookingDetails() {
     // Calculate dynamic reservation time based on distance
     const reservationMinutes = Math.max(30, Math.ceil(estimatedTime * 1.5));
 
-    const handleConfirmBooking = async () => {
-        if (emergencyTypes.length === 0) {
-            Alert.alert('Required', 'Please select at least one emergency type');
-            return;
-        }
+    const initialValues = {
+        emergencyTypes: [] as string[],
+        bedType: 'general' as 'general' | 'icu',
+        patientCondition: '',
+        contactPerson: '',
+        contactPhone: '',
+        notes: '',
+    };
 
-        if (!contactPerson.trim()) {
-            Alert.alert('Required', 'Please enter contact person name');
-            return;
-        }
-
-        if (!contactPhone.trim()) {
-            Alert.alert('Required', 'Please enter contact phone number');
-            return;
-        }
-
+    const handleConfirmBooking = async (values: typeof initialValues) => {
         setLoading(true);
         try {
             const booking = await emergencyService.bookEmergencyBed({
                 hospital_id: hospitalId,
-                emergency_type: emergencyTypes.join(', '),
-                bed_type: bedType,
-                patient_condition: patientCondition,
-                contact_person: contactPerson,
-                contact_phone: contactPhone,
-                notes: notes,
+                emergency_type: values.emergencyTypes.join(', '),
+                bed_type: values.bedType,
+                patient_condition: values.patientCondition,
+                contact_person: values.contactPerson,
+                contact_phone: values.contactPhone,
+                notes: values.notes,
                 estimated_arrival_minutes: estimatedTime,
             });
 
@@ -128,184 +141,219 @@ export default function BookingDetails() {
                     <Text style={styles.headerTitle}>Confirm Booking</Text>
                 </View>
 
-                <ScrollView
-                    style={styles.scrollView}
-                    contentContainerStyle={styles.scrollContent}
+                <Formik
+                    initialValues={initialValues}
+                    validationSchema={bookingValidationSchema}
+                    onSubmit={handleConfirmBooking}
                 >
-                    {/* Hospital Info Card */}
-                    <View style={styles.hospitalCard}>
-                        <Ionicons
-                            name="business"
-                            size={32}
-                            color={isDark ? '#60A5FA' : '#3B82F6'}
-                        />
-                        <View style={styles.hospitalInfo}>
-                            <Text style={styles.hospitalName}>{hospitalName}</Text>
-                            <Text style={styles.hospitalDetails}>
-                                {emergencyService.formatDistance(distance)} • {emergencyService.formatTime(estimatedTime)}
-                            </Text>
-                            <Text style={styles.hospitalBeds}>
-                                {availableBeds} bed(s) available
-                            </Text>
-                        </View>
-                    </View>
+                    {({ handleChange, handleSubmit, values, errors, touched, setFieldValue }) => (
+                        <ScrollView
+                            style={styles.scrollView}
+                            contentContainerStyle={styles.scrollContent}
+                        >
+                            {/* Hospital Info Card */}
+                            <View style={styles.hospitalCard}>
+                                <Ionicons
+                                    name="business"
+                                    size={32}
+                                    color={isDark ? '#60A5FA' : '#3B82F6'}
+                                />
+                                <View style={styles.hospitalInfo}>
+                                    <Text style={styles.hospitalName}>{hospitalName}</Text>
+                                    <Text style={styles.hospitalDetails}>
+                                        {emergencyService.formatDistance(distance)} • {emergencyService.formatTime(estimatedTime)}
+                                    </Text>
+                                    <Text style={styles.hospitalBeds}>
+                                        {availableBeds} bed(s) available
+                                    </Text>
+                                </View>
+                            </View>
 
-                    {/* Form */}
-                    <View style={styles.formSection}>
-                        <Text style={styles.sectionTitle}>Patient Information</Text>
+                            {/* Form */}
+                            <View style={styles.formSection}>
+                                <Text style={styles.sectionTitle}>Patient Information</Text>
 
-                        {/* Emergency Type */}
-                        <Text style={styles.label}>Emergency Type * (Select all that apply)</Text>
-                        <View style={styles.emergencyTypeGrid}>
-                            {EMERGENCY_TYPES.map((type) => {
-                                const isSelected = emergencyTypes.includes(type);
-                                return (
+                                {/* Emergency Type */}
+                                <Text style={styles.label}>Emergency Type * (Select all that apply)</Text>
+                                <View style={styles.emergencyTypeGrid}>
+                                    {EMERGENCY_TYPES.map((type) => {
+                                        const isSelected = values.emergencyTypes.includes(type);
+                                        return (
+                                            <TouchableOpacity
+                                                key={type}
+                                                style={[
+                                                    styles.emergencyTypeButton,
+                                                    isSelected && styles.emergencyTypeButtonActive,
+                                                ]}
+                                                onPress={() => {
+                                                    if (isSelected) {
+                                                        setFieldValue('emergencyTypes', values.emergencyTypes.filter(t => t !== type));
+                                                    } else {
+                                                        setFieldValue('emergencyTypes', [...values.emergencyTypes, type]);
+                                                    }
+                                                }}
+                                            >
+                                                {isSelected && (
+                                                    <Ionicons name="checkmark-circle" size={16} color="#FFF" style={{ marginRight: 4 }} />
+                                                )}
+                                                <Text
+                                                    style={[
+                                                        styles.emergencyTypeText,
+                                                        isSelected && styles.emergencyTypeTextActive,
+                                                    ]}
+                                                >
+                                                    {type}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                                {touched.emergencyTypes && errors.emergencyTypes && (
+                                    <Text style={styles.errorText}>{errors.emergencyTypes}</Text>
+                                )}
+
+                                {/* Bed Type Selection */}
+                                <Text style={styles.label}>Bed Type *</Text>
+                                <View style={styles.bedTypeContainer}>
                                     <TouchableOpacity
-                                        key={type}
                                         style={[
-                                            styles.emergencyTypeButton,
-                                            isSelected && styles.emergencyTypeButtonActive,
+                                            styles.bedTypeButton,
+                                            values.bedType === 'general' && styles.bedTypeButtonActive,
                                         ]}
-                                        onPress={() => {
-                                            if (isSelected) {
-                                                setEmergencyTypes(emergencyTypes.filter(t => t !== type));
-                                            } else {
-                                                setEmergencyTypes([...emergencyTypes, type]);
-                                            }
-                                        }}
+                                        onPress={() => setFieldValue('bedType', 'general')}
                                     >
-                                        {isSelected && (
-                                            <Ionicons name="checkmark-circle" size={16} color="#FFF" style={{ marginRight: 4 }} />
-                                        )}
+                                        <Ionicons
+                                            name="bed-outline"
+                                            size={20}
+                                            color={values.bedType === 'general' ? '#FFF' : '#666'}
+                                        />
                                         <Text
                                             style={[
-                                                styles.emergencyTypeText,
-                                                isSelected && styles.emergencyTypeTextActive,
+                                                styles.bedTypeText,
+                                                values.bedType === 'general' && styles.bedTypeTextActive,
                                             ]}
                                         >
-                                            {type}
+                                            General Bed
                                         </Text>
                                     </TouchableOpacity>
-                                );
-                            })}
-                        </View>
 
-                        {/* Bed Type Selection */}
-                        <Text style={styles.label}>Bed Type *</Text>
-                        <View style={styles.bedTypeContainer}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.bedTypeButton,
-                                    bedType === 'general' && styles.bedTypeButtonActive,
-                                ]}
-                                onPress={() => setBedType('general')}
-                            >
-                                <Ionicons
-                                    name="bed-outline"
-                                    size={20}
-                                    color={bedType === 'general' ? '#FFF' : '#666'}
-                                />
-                                <Text
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.bedTypeButton,
+                                            values.bedType === 'icu' && styles.bedTypeButtonActive,
+                                        ]}
+                                        onPress={() => setFieldValue('bedType', 'icu')}
+                                    >
+                                        <Ionicons
+                                            name="pulse-outline"
+                                            size={20}
+                                            color={values.bedType === 'icu' ? '#FFF' : '#666'}
+                                        />
+                                        <Text
+                                            style={[
+                                                styles.bedTypeText,
+                                                values.bedType === 'icu' && styles.bedTypeTextActive,
+                                            ]}
+                                        >
+                                            ICU Bed
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Patient Condition */}
+                                <Text style={styles.label}>Patient Condition (Optional)</Text>
+                                <TextInput
                                     style={[
-                                        styles.bedTypeText,
-                                        bedType === 'general' && styles.bedTypeTextActive,
+                                        styles.textArea,
+                                        touched.patientCondition && errors.patientCondition && { borderColor: '#ef4444', borderWidth: 1 }
                                     ]}
-                                >
-                                    General Bed
-                                </Text>
+                                    value={values.patientCondition}
+                                    onChangeText={handleChange('patientCondition')}
+                                    placeholder="Describe the condition..."
+                                    placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
+                                    multiline
+                                    numberOfLines={3}
+                                />
+                                {touched.patientCondition && errors.patientCondition && (
+                                    <Text style={styles.errorText}>{errors.patientCondition}</Text>
+                                )}
+
+                                {/* Contact Person */}
+                                <Text style={styles.label}>Contact Person *</Text>
+                                <TextInput
+                                    style={[
+                                        styles.input,
+                                        touched.contactPerson && errors.contactPerson && { borderColor: '#ef4444', borderWidth: 1 }
+                                    ]}
+                                    value={values.contactPerson}
+                                    onChangeText={handleChange('contactPerson')}
+                                    placeholder="Full name (required)"
+                                    placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
+                                />
+                                {touched.contactPerson && errors.contactPerson && (
+                                    <Text style={styles.errorText}>{errors.contactPerson}</Text>
+                                )}
+
+                                {/* Contact Phone */}
+                                <Text style={styles.label}>Contact Phone *</Text>
+                                <TextInput
+                                    style={[
+                                        styles.input,
+                                        touched.contactPhone && errors.contactPhone && { borderColor: '#ef4444', borderWidth: 1 }
+                                    ]}
+                                    value={values.contactPhone}
+                                    onChangeText={handleChange('contactPhone')}
+                                    placeholder="Phone number (required)"
+                                    placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
+                                    keyboardType="phone-pad"
+                                />
+                                {touched.contactPhone && errors.contactPhone && (
+                                    <Text style={styles.errorText}>{errors.contactPhone}</Text>
+                                )}
+
+                                {/* Additional Notes */}
+                                <Text style={styles.label}>Additional Notes (Optional)</Text>
+                                <TextInput
+                                    style={[
+                                        styles.textArea,
+                                        touched.notes && errors.notes && { borderColor: '#ef4444', borderWidth: 1 }
+                                    ]}
+                                    value={values.notes}
+                                    onChangeText={handleChange('notes')}
+                                    placeholder="Any additional information..."
+                                    placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
+                                    multiline
+                                    numberOfLines={3}
+                                />
+                                {touched.notes && errors.notes && (
+                                    <Text style={styles.errorText}>{errors.notes}</Text>
+                                )}
+                            </View>
+
+                            {/* Confirm Button */}
+                            <TouchableOpacity
+                                style={[styles.confirmButton, loading && styles.confirmButtonDisabled]}
+                                onPress={() => handleSubmit()}
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <Text style={styles.confirmButtonText}>CONFIRM BOOKING</Text>
+                                )}
                             </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={[
-                                    styles.bedTypeButton,
-                                    bedType === 'icu' && styles.bedTypeButtonActive,
-                                ]}
-                                onPress={() => setBedType('icu')}
-                            >
-                                <Ionicons
-                                    name="pulse-outline"
-                                    size={20}
-                                    color={bedType === 'icu' ? '#FFF' : '#666'}
-                                />
-                                <Text
-                                    style={[
-                                        styles.bedTypeText,
-                                        bedType === 'icu' && styles.bedTypeTextActive,
-                                    ]}
-                                >
-                                    ICU Bed
+                            {/* Info Note */}
+                            <View style={styles.infoNote}>
+                                <Ionicons name="information-circle" size={20} color="#3B82F6" />
+                                <Text style={styles.infoNoteText}>
+                                    Your bed will be reserved for {reservationMinutes} minutes ({emergencyService.formatTime(reservationMinutes)}). Please arrive at the
+                                    hospital as soon as possible.
                                 </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Patient Condition */}
-                        <Text style={styles.label}>Patient Condition (Optional)</Text>
-                        <TextInput
-                            style={styles.textArea}
-                            value={patientCondition}
-                            onChangeText={setPatientCondition}
-                            placeholder="Describe the condition..."
-                            placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
-                            multiline
-                            numberOfLines={3}
-                        />
-
-                        {/* Contact Person */}
-                        <Text style={styles.label}>Contact Person *</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={contactPerson}
-                            onChangeText={setContactPerson}
-                            placeholder="Full name (required)"
-                            placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
-                        />
-
-                        {/* Contact Phone */}
-                        <Text style={styles.label}>Contact Phone *</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={contactPhone}
-                            onChangeText={setContactPhone}
-                            placeholder="Phone number (required)"
-                            placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
-                            keyboardType="phone-pad"
-                        />
-
-                        {/* Additional Notes */}
-                        <Text style={styles.label}>Additional Notes (Optional)</Text>
-                        <TextInput
-                            style={styles.textArea}
-                            value={notes}
-                            onChangeText={setNotes}
-                            placeholder="Any additional information..."
-                            placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
-                            multiline
-                            numberOfLines={3}
-                        />
-                    </View>
-
-                    {/* Confirm Button */}
-                    <TouchableOpacity
-                        style={[styles.confirmButton, loading && styles.confirmButtonDisabled]}
-                        onPress={handleConfirmBooking}
-                        disabled={loading}
-                    >
-                        {loading ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                            <Text style={styles.confirmButtonText}>CONFIRM BOOKING</Text>
-                        )}
-                    </TouchableOpacity>
-
-                    {/* Info Note */}
-                    <View style={styles.infoNote}>
-                        <Ionicons name="information-circle" size={20} color="#3B82F6" />
-                        <Text style={styles.infoNoteText}>
-                            Your bed will be reserved for {reservationMinutes} minutes ({emergencyService.formatTime(reservationMinutes)}). Please arrive at the
-                            hospital as soon as possible.
-                        </Text>
-                    </View>
-                </ScrollView>
+                            </View>
+                        </ScrollView>
+                    )}
+                </Formik>
             </LinearGradient>
         </View>
     );
@@ -399,6 +447,12 @@ const getStyles = (isDark: boolean) =>
             color: isDark ? '#FFFFFF' : '#1F2937',
             borderWidth: 1,
             borderColor: isDark ? '#4B5563' : '#E5E7EB',
+        },
+        errorText: {
+            color: '#ef4444',
+            fontSize: 12,
+            marginTop: 4,
+            marginBottom: 8,
         },
         textArea: {
             backgroundColor: isDark ? '#374151' : '#F3F4F6',

@@ -179,9 +179,9 @@ class EmergencyBooking(models.Model):
 
     STATUS_CHOICES = [
         ('reserved', 'Bed Reserved'),
-        ('patient_on_way', 'Patient On the Way'),
         ('arrived', 'Patient Arrived'),
         ('admitted', 'Admitted'),
+        ('discharged', 'Discharged'),
         ('cancelled', 'Cancelled'),
         ('expired', 'Reservation Expired'),
     ]
@@ -288,3 +288,38 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"{self.title} - ₹{self.amount} - {self.user.username}"
+
+
+class Insurance(models.Model):
+    """Patient insurance information (Section 2.2)"""
+    
+    COVERAGE_TYPE_CHOICES = [
+        ('individual', 'Individual'),
+        ('family', 'Family'),
+        ('employer', 'Employer'),
+        ('government', 'Government'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='insurances')
+    provider_name = models.CharField(max_length=200, help_text="Insurance provider name (e.g., ICICI Lombard, Star Health)")
+    policy_number = models.CharField(max_length=100, unique=True)
+    policy_expiry = models.DateField(help_text="Policy expiration date")
+    coverage_type = models.CharField(max_length=20, choices=COVERAGE_TYPE_CHOICES, default='individual')
+    coverage_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Coverage amount in rupees")
+    is_active = models.BooleanField(default=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Insurance"
+        verbose_name_plural = "Insurances"
+        ordering = ['-is_active', '-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['policy_number']),
+            models.Index(fields=['policy_expiry']),
+        ]
+    
+    def __str__(self):
+        return f"{self.provider_name} - {self.policy_number} ({self.user.username})"

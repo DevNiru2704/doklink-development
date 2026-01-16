@@ -81,7 +81,7 @@ export default function Search() {
                 `/healthcare/hospitals/search_google/?latitude=${userLocation.lat}&longitude=${userLocation.lng}&radius=${radius}`
             );
 
-            const data = response.data;
+            const data = response.data as { status: string; results?: Hospital[] };
 
             if (data.status === 'OK' && data.results) {
                 // Calculate distance for each hospital
@@ -96,7 +96,7 @@ export default function Search() {
                 });
 
                 // Sort by distance
-                hospitalsWithDistance.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+                hospitalsWithDistance.sort((a: Hospital, b: Hospital) => (a.distance || 0) - (b.distance || 0));
                 setHospitals(hospitalsWithDistance);
             } else {
                 Alert.alert('Error', `Failed to fetch hospitals: ${data.status || 'Unknown error'}`);

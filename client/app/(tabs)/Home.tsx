@@ -111,7 +111,7 @@ export default function Home() {
   const handleViewActiveBooking = () => {
     if (activeBooking) {
       router.push({
-        pathname: '/pages/emergency/ActiveBooking',
+        pathname: '/pages/dashboard/ActiveBooking',
         params: { bookingId: activeBooking.id },
       });
     }

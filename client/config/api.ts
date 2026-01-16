@@ -115,6 +115,14 @@ export interface UserProfile {
   is_verified: boolean;
   email_verified: boolean;
   phone_verified: boolean;
+  // Emergency Contact (Section 2.1)
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  // Medical Information (Section 2.1 & 2.3)
+  medical_allergies?: string | null;
+  current_medications?: string | null;
+  medical_conditions?: string | null;
+  previous_surgeries?: string | null;
   created_at: string;
   updated_at: string;
 }

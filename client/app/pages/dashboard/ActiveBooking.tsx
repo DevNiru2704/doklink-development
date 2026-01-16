@@ -142,14 +142,14 @@ export default function ActiveBooking() {
         switch (status) {
             case 'reserved':
                 return '#FF6B6B';
-            case 'patient_on_way':
-                return '#FFA500';
             case 'arrived':
                 return '#4ECDC4';
             case 'admitted':
                 return '#95E1D3';
+            case 'discharged':
+                return '#10B981';
             case 'cancelled':
-                return '#999';
+                return '#F38181';
             default:
                 return '#666';
         }
@@ -159,8 +159,6 @@ export default function ActiveBooking() {
         switch (status) {
             case 'reserved':
                 return 'time-outline';
-            case 'patient_on_way':
-                return 'car-outline';
             case 'arrived':
                 return 'location-outline';
             case 'admitted':
@@ -300,7 +298,7 @@ export default function ActiveBooking() {
                 </View>
 
                 {/* Status Action Buttons */}
-                {(booking.status === 'reserved' || booking.status === 'patient_on_way') && (
+                {booking.status === 'reserved' && (
                     <View style={styles.statusActionsContainer}>
                         <TouchableOpacity style={styles.arrivedButton} onPress={handleMarkArrived}>
                             <Ionicons name="checkmark-circle" size={24} color="#FFF" />

@@ -38,12 +38,42 @@ export default function MySpace() {
     };
 
     const menuItems = [
-        { icon: 'person-outline', title: 'Profile Settings', subtitle: 'Edit your personal information' },
-        { icon: 'document-text-outline', title: 'Medical Records', subtitle: 'View your health records' },
-        { icon: 'card-outline', title: 'Insurance', subtitle: 'Manage your insurance policies' },
-        { icon: 'notifications-outline', title: 'Notifications', subtitle: 'Manage notification preferences' },
-        { icon: 'shield-checkmark-outline', title: 'Privacy & Security', subtitle: 'Control your privacy settings' },
-        { icon: 'help-circle-outline', title: 'Help & Support', subtitle: 'Get help and contact support' },
+        {
+            icon: 'person-outline',
+            title: 'Profile Settings',
+            subtitle: 'Edit your personal information',
+            route: '/pages/profile/ProfileSettings'
+        },
+        {
+            icon: 'document-text-outline',
+            title: 'Medical Records',
+            subtitle: 'View your health records',
+            route: '/pages/profile/MedicalRecords'
+        },
+        {
+            icon: 'card-outline',
+            title: 'Insurance',
+            subtitle: 'Manage your insurance policies',
+            route: '/pages/profile/InsuranceManagement'
+        },
+        {
+            icon: 'notifications-outline',
+            title: 'Notifications',
+            subtitle: 'Manage notification preferences',
+            route: null
+        },
+        {
+            icon: 'shield-checkmark-outline',
+            title: 'Privacy & Security',
+            subtitle: 'Control your privacy settings',
+            route: null
+        },
+        {
+            icon: 'help-circle-outline',
+            title: 'Help & Support',
+            subtitle: 'Get help and contact support',
+            route: null
+        },
     ];
 
     return (
@@ -75,6 +105,8 @@ export default function MySpace() {
                     <TouchableOpacity
                         key={index}
                         style={[styles.menuItem, { backgroundColor: isDark ? '#1f2937' : '#ffffff' }]}
+                        onPress={() => item.route && router.push(item.route as any)}
+                        disabled={!item.route}
                     >
                         <View style={styles.menuItemLeft}>
                             <View style={[styles.iconContainer, { backgroundColor: isDark ? '#374151' : '#f3f4f6' }]}>

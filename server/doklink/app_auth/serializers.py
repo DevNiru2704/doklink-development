@@ -409,3 +409,27 @@ class LoginSerializer(serializers.Serializer):
 
         attrs['user'] = user
         return attrs
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    """Serializer for UserProfile with medical and emergency contact info"""
+    
+    permanent_address = AddressSerializer(read_only=True)
+    current_address = AddressSerializer(read_only=True)
+    full_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = UserProfile
+        fields = [
+            'phone_number', 'date_of_birth', 'profile_picture', 'aadhaar_number',
+            'aadhaar_verified', 'permanent_address', 'current_address', 
+            'same_as_permanent', 'preferred_language', 'referral_code',
+            'emergency_contact_name', 'emergency_contact_phone',
+            'medical_allergies', 'current_medications', 'medical_conditions',
+            'previous_surgeries', 'full_name', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['aadhaar_verified', 'created_at', 'updated_at']
+    
+    def get_full_name(self, obj):
+        """Return user's full name"""
+        return obj.get_full_name()

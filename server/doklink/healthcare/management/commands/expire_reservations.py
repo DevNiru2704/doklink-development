@@ -14,9 +14,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         now = timezone.now()
         
-        # Find expired reservations that are still in 'reserved' or 'patient_on_way' status
+        # Find expired reservations that are still in 'reserved' status
         expired_bookings = EmergencyBooking.objects.filter(
-            status__in=['reserved', 'patient_on_way'],
+            status__in=['reserved'],
             reservation_expires_at__lt=now
         ).select_related('hospital')
         
