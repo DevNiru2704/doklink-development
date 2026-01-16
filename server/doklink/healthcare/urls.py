@@ -4,7 +4,8 @@ from .views import (
     DoctorViewSet, HospitalViewSet, TreatmentViewSet,
     BookingViewSet, PaymentViewSet, DashboardViewSet,
     trigger_emergency, get_nearby_hospitals, book_emergency_bed,
-    get_emergency_booking, update_booking_status, get_active_booking
+    get_emergency_booking, update_booking_status, get_active_booking,
+    get_emergency_bookings
 )
 
 router = DefaultRouter()
@@ -25,4 +26,5 @@ urlpatterns = [
     path('emergency/booking/<int:booking_id>/', get_emergency_booking, name='emergency-booking-detail'),
     path('emergency/booking/<int:booking_id>/status/', update_booking_status, name='emergency-booking-status'),
     path('emergency/active/', get_active_booking, name='emergency-active-booking'),
+    path('emergency/bookings/', get_emergency_bookings, name='emergency-bookings-list'),
 ]

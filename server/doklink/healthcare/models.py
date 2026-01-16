@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator, MinValueValidator
 from phonenumber_field.modelfields import PhoneNumberField
 
 
@@ -52,10 +52,10 @@ class Hospital(models.Model):
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     
     # Emergency bed availability
-    total_general_beds = models.IntegerField(default=0, help_text="Total general beds in hospital")
-    available_general_beds = models.IntegerField(default=0, help_text="Currently available general beds")
-    total_icu_beds = models.IntegerField(default=0, help_text="Total ICU beds in hospital")
-    available_icu_beds = models.IntegerField(default=0, help_text="Currently available ICU beds")
+    total_general_beds = models.IntegerField(default=0, validators=[MinValueValidator(0)], help_text="Total general beds in hospital")
+    available_general_beds = models.IntegerField(default=0, validators=[MinValueValidator(0)], help_text="Currently available general beds")
+    total_icu_beds = models.IntegerField(default=0, validators=[MinValueValidator(0)], help_text="Total ICU beds in hospital")
+    available_icu_beds = models.IntegerField(default=0, validators=[MinValueValidator(0)], help_text="Currently available ICU beds")
     
     # Insurance and cost estimates
     accepts_insurance = models.BooleanField(default=True)
@@ -197,11 +197,11 @@ class EmergencyBooking(models.Model):
     booking = models.OneToOneField(Booking, on_delete=models.CASCADE, null=True, blank=True, related_name='emergency_details')
     
     # Emergency details
-    emergency_type = models.CharField(max_length=20, choices=EMERGENCY_TYPE_CHOICES)
+    emergency_type = models.CharField(max_length=200, choices=EMERGENCY_TYPE_CHOICES, help_text="Can be comma-separated for multiple types")
     bed_type = models.CharField(max_length=10, choices=BED_TYPE_CHOICES, default='general')
     patient_condition = models.TextField(help_text="Brief description of patient's condition")
     
-    # Contact information
+    # Contact information (REQUIRED)
     contact_person = models.CharField(max_length=200, help_text="Name of contact person")
     contact_phone = PhoneNumberField(help_text="Contact person's phone number")
     
@@ -212,8 +212,8 @@ class EmergencyBooking(models.Model):
     admission_time = models.DateTimeField(null=True, blank=True, help_text="Time patient was admitted")
     
     # Location tracking
-    booking_latitude = models.DecimalField(max_digits=9, decimal_places=6, help_text="User's location when booking")
-    booking_longitude = models.DecimalField(max_digits=9, decimal_places=6, help_text="User's location when booking")
+    booking_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, help_text="User's location when booking")
+    booking_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, help_text="User's location when booking")
     estimated_arrival_minutes = models.IntegerField(default=30, help_text="Estimated travel time in minutes")
     
     # Additional information

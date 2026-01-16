@@ -18,21 +18,21 @@ import NetworkBackgroundImage from "@/assets/images/network_background.png";
 import useThemedStyles from "@/styles/Login";
 
 // Import components
-import MethodSelection from "../../components/login/MethodSelection";
-import LoginForm from "../../components/login/LoginForm";
-import ForgotPassword from "../../components/login/ForgotPassword";
-import UsernameOTPChoice from "../../components/login/UsernameOTPChoice";
-import ForgotPasswordOTPChoice from "../../components/login/ForgotPasswordOTPChoice";
+import MethodSelection from "@/components/login/MethodSelection";
+import LoginForm from "@/components/login/LoginForm";
+import ForgotPassword from "@/components/login/ForgotPassword";
+import UsernameOTPChoice from "@/components/login/UsernameOTPChoice";
+import ForgotPasswordOTPChoice from "@/components/login/ForgotPasswordOTPChoice";
 
 // Import types and validation
-import { 
-  LoginMethodType, 
-  LoginModeType, 
-  ForgotPasswordStep, 
-  ScreenType, 
+import {
+  LoginMethodType,
+  LoginModeType,
+  ForgotPasswordStep,
+  ScreenType,
   DeliveryMethodType,
-  OTPDeliveryOption 
-} from "../../utils/login/types";
+  OTPDeliveryOption
+} from "@/utils/login/types";
 
 interface LoginScreenProps {
   onBack: () => void;
@@ -60,7 +60,7 @@ export default function LoginNew({ onBack, onLogin, onSignUp }: LoginScreenProps
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(30);
   const [showResendButton, setShowResendButton] = useState(false);
-  
+
   // OTP state management
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [forgotPasswordOtp, setForgotPasswordOtp] = useState(["", "", "", "", "", ""]);
@@ -74,7 +74,7 @@ export default function LoginNew({ onBack, onLogin, onSignUp }: LoginScreenProps
 
   // State for storing reset token for forgot password
   const [resetToken, setResetToken] = useState<string>("");
-  
+
   // State for storing current login field for resend OTP functionality
   const [currentLoginField, setCurrentLoginField] = useState<string>("");
 
@@ -247,9 +247,9 @@ export default function LoginNew({ onBack, onLogin, onSignUp }: LoginScreenProps
           styles.content,
           colorScheme === "dark"
             ? {
-                opacity: fadeInAnimation,
-                transform: [{ translateY: slideInAnimation }],
-              }
+              opacity: fadeInAnimation,
+              transform: [{ translateY: slideInAnimation }],
+            }
             : {},
         ]}
       >

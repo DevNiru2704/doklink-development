@@ -31,8 +31,8 @@ import PrivacyPolicy from "./PrivacyPolicy";
 import TermsAndConditions from "./TermsAndCondition";
 
 // Import API services
-import { authService, INDIAN_STATES } from "../../services/authService";
-import { cloudinaryService } from "../../services/cloudinaryService";
+import { authService, INDIAN_STATES } from "@/services/authService";
+import { cloudinaryService } from "@/services/cloudinaryService";
 
 interface SignUpProps {
   onBack: () => void;

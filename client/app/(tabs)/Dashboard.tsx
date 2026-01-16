@@ -294,7 +294,7 @@ export default function Dashboard() {
                 ))}
                 <TouchableOpacity
                     style={styles.viewHistoryButton}
-                    onPress={() => router.push('/pages/PaymentHistory')}
+                    onPress={() => router.push('/pages/dashboard/PaymentHistory')}
                 >
                     <Text style={styles.viewHistoryText}>View Payment History</Text>
                 </TouchableOpacity>

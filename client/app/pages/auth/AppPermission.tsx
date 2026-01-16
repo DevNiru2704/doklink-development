@@ -20,12 +20,12 @@ import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import LocationPermissionComponent from "../../components/permissions/LocationPermissionComponent";
-import FilesPermissionComponent from "../../components/permissions/FilesPermissionComponent";
-import NetworkBackgroundImage from "../../assets/images/network_background.png";
-import NetworkBackgroundImageLight from "../../assets/images/light_background.png";
-import useThemedStyles from "../../styles/AppPermission";
-import { usePermissionStore } from "../../store/permissionStore";
+import LocationPermissionComponent from "@/components/permissions/LocationPermissionComponent";
+import FilesPermissionComponent from "@/components/permissions/FilesPermissionComponent";
+import NetworkBackgroundImage from "@/assets/images/network_background.png";
+import NetworkBackgroundImageLight from "@/assets/images/light_background.png";
+import useThemedStyles from "@/styles/AppPermission";
+import { usePermissionStore } from "@/store/permissionStore";
 
 interface AppPermissionProps {
   onAllPermissionsGranted: () => void;

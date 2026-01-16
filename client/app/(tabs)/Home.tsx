@@ -81,7 +81,7 @@ export default function Home() {
 
       // Navigate to hospital selection with location
       router.push({
-        pathname: '/pages/HospitalSelection',
+        pathname: '/pages/emergency/HospitalSelection',
         params: {
           latitude: latitude.toString(),
           longitude: longitude.toString(),
@@ -110,11 +110,10 @@ export default function Home() {
 
   const handleViewActiveBooking = () => {
     if (activeBooking) {
-      Alert.alert(
-        'Active Booking',
-        `You have an active booking at ${activeBooking.hospital.name}`,
-        [{ text: 'OK' }]
-      );
+      router.push({
+        pathname: '/pages/emergency/ActiveBooking',
+        params: { bookingId: activeBooking.id },
+      });
     }
   };
 
@@ -281,6 +280,18 @@ export default function Home() {
             <View style={styles.quickActionsGrid}>
               <TouchableOpacity
                 style={styles.quickActionCard}
+                onPress={() => router.push('/pages/emergency/BookingHistory')}
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={32}
+                  color={isDark ? '#60A5FA' : '#3B82F6'}
+                />
+                <Text style={styles.quickActionText}>History</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.quickActionCard}
                 onPress={() => router.push('/(tabs)/Dashboard')}
               >
                 <Ionicons
@@ -313,20 +324,6 @@ export default function Home() {
                   color={isDark ? '#60A5FA' : '#3B82F6'}
                 />
                 <Text style={styles.quickActionText}>Search</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.quickActionCard}
-                onPress={() => {
-                  Alert.alert('Settings', 'Settings page coming soon');
-                }}
-              >
-                <Ionicons
-                  name="settings-outline"
-                  size={32}
-                  color={isDark ? '#60A5FA' : '#3B82F6'}
-                />
-                <Text style={styles.quickActionText}>Settings</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -155,7 +155,7 @@ class EmergencyService {
         try {
             return await this.updateBookingStatus(
                 bookingId,
-                'patient_arrived',
+                'arrived',
                 'Patient has arrived at the hospital'
             );
         } catch (error) {
@@ -183,6 +183,26 @@ class EmergencyService {
         } catch (error) {
             console.error('Error fetching active booking:', error);
             return null;
+        }
+    }
+
+    /**
+     * Get booking history for current user
+     */
+    async getBookingHistory(): Promise<EmergencyBooking[]> {
+        try {
+            const response = await apiClient.get<EmergencyBooking[]>(
+                '/healthcare/emergency/bookings/',
+                {
+                    params: {
+                        ordering: '-created_at',
+                    },
+                }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching booking history:', error);
+            throw error;
         }
     }
 

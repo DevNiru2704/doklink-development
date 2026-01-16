@@ -12,8 +12,8 @@ import LogoSVGDark from "../assets/images/just_the_logo_dark.svg";
 import LogoSVGLight from "../assets/images/just_the_logo_light.svg";
 import useThemedStyles from "../styles/index";
 
-import StartingScreen from "./pages/StartingScreen";
-import AppPermission from "./pages/AppPermission";
+import StartingScreen from "./pages/auth/StartingScreen";
+import AppPermission from "./pages/auth/AppPermission";
 
 export default function App() {
   const colorScheme = useColorScheme();

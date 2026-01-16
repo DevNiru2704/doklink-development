@@ -27,7 +27,8 @@ export default function BookingDetails() {
     const params = useLocalSearchParams();
     const styles = getStyles(isDark);
 
-    const [emergencyType, setEmergencyType] = useState('');
+    const [emergencyTypes, setEmergencyTypes] = useState<string[]>([]);
+    const [bedType, setBedType] = useState<'general' | 'icu'>('general');
     const [patientCondition, setPatientCondition] = useState('');
     const [contactPerson, setContactPerson] = useState('');
     const [contactPhone, setContactPhone] = useState('');
@@ -41,9 +42,22 @@ export default function BookingDetails() {
     const availableBeds = parseInt(params.availableBeds as string);
     const isEmergency = params.isEmergency === 'true';
 
+    // Calculate dynamic reservation time based on distance
+    const reservationMinutes = Math.max(30, Math.ceil(estimatedTime * 1.5));
+
     const handleConfirmBooking = async () => {
-        if (!emergencyType) {
-            Alert.alert('Required', 'Please select emergency type');
+        if (emergencyTypes.length === 0) {
+            Alert.alert('Required', 'Please select at least one emergency type');
+            return;
+        }
+
+        if (!contactPerson.trim()) {
+            Alert.alert('Required', 'Please enter contact person name');
+            return;
+        }
+
+        if (!contactPhone.trim()) {
+            Alert.alert('Required', 'Please enter contact phone number');
             return;
         }
 
@@ -51,16 +65,19 @@ export default function BookingDetails() {
         try {
             const booking = await emergencyService.bookEmergencyBed({
                 hospital_id: hospitalId,
-                emergency_type: emergencyType,
+                emergency_type: emergencyTypes.join(', '),
+                bed_type: bedType,
                 patient_condition: patientCondition,
                 contact_person: contactPerson,
                 contact_phone: contactPhone,
                 notes: notes,
+                estimated_arrival_minutes: estimatedTime,
             });
 
+            const reservationMinutes = Math.max(30, Math.ceil(estimatedTime * 1.5));
             Alert.alert(
                 'Booking Confirmed!',
-                `Your bed has been reserved at ${hospitalName}. Please arrive within 30 minutes.`,
+                `Your bed has been reserved at ${hospitalName}. Please arrive within ${reservationMinutes} minutes.`,
                 [
                     {
                         text: 'View Booking',
@@ -138,27 +155,87 @@ export default function BookingDetails() {
                         <Text style={styles.sectionTitle}>Patient Information</Text>
 
                         {/* Emergency Type */}
-                        <Text style={styles.label}>Emergency Type *</Text>
+                        <Text style={styles.label}>Emergency Type * (Select all that apply)</Text>
                         <View style={styles.emergencyTypeGrid}>
-                            {EMERGENCY_TYPES.map((type) => (
-                                <TouchableOpacity
-                                    key={type}
-                                    style={[
-                                        styles.emergencyTypeButton,
-                                        emergencyType === type && styles.emergencyTypeButtonActive,
-                                    ]}
-                                    onPress={() => setEmergencyType(type)}
-                                >
-                                    <Text
+                            {EMERGENCY_TYPES.map((type) => {
+                                const isSelected = emergencyTypes.includes(type);
+                                return (
+                                    <TouchableOpacity
+                                        key={type}
                                         style={[
-                                            styles.emergencyTypeText,
-                                            emergencyType === type && styles.emergencyTypeTextActive,
+                                            styles.emergencyTypeButton,
+                                            isSelected && styles.emergencyTypeButtonActive,
                                         ]}
+                                        onPress={() => {
+                                            if (isSelected) {
+                                                setEmergencyTypes(emergencyTypes.filter(t => t !== type));
+                                            } else {
+                                                setEmergencyTypes([...emergencyTypes, type]);
+                                            }
+                                        }}
                                     >
-                                        {type}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
+                                        {isSelected && (
+                                            <Ionicons name="checkmark-circle" size={16} color="#FFF" style={{ marginRight: 4 }} />
+                                        )}
+                                        <Text
+                                            style={[
+                                                styles.emergencyTypeText,
+                                                isSelected && styles.emergencyTypeTextActive,
+                                            ]}
+                                        >
+                                            {type}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+
+                        {/* Bed Type Selection */}
+                        <Text style={styles.label}>Bed Type *</Text>
+                        <View style={styles.bedTypeContainer}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.bedTypeButton,
+                                    bedType === 'general' && styles.bedTypeButtonActive,
+                                ]}
+                                onPress={() => setBedType('general')}
+                            >
+                                <Ionicons
+                                    name="bed-outline"
+                                    size={20}
+                                    color={bedType === 'general' ? '#FFF' : '#666'}
+                                />
+                                <Text
+                                    style={[
+                                        styles.bedTypeText,
+                                        bedType === 'general' && styles.bedTypeTextActive,
+                                    ]}
+                                >
+                                    General Bed
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.bedTypeButton,
+                                    bedType === 'icu' && styles.bedTypeButtonActive,
+                                ]}
+                                onPress={() => setBedType('icu')}
+                            >
+                                <Ionicons
+                                    name="pulse-outline"
+                                    size={20}
+                                    color={bedType === 'icu' ? '#FFF' : '#666'}
+                                />
+                                <Text
+                                    style={[
+                                        styles.bedTypeText,
+                                        bedType === 'icu' && styles.bedTypeTextActive,
+                                    ]}
+                                >
+                                    ICU Bed
+                                </Text>
+                            </TouchableOpacity>
                         </View>
 
                         {/* Patient Condition */}
@@ -174,22 +251,22 @@ export default function BookingDetails() {
                         />
 
                         {/* Contact Person */}
-                        <Text style={styles.label}>Contact Person (Optional)</Text>
+                        <Text style={styles.label}>Contact Person *</Text>
                         <TextInput
                             style={styles.input}
                             value={contactPerson}
                             onChangeText={setContactPerson}
-                            placeholder="Full name"
+                            placeholder="Full name (required)"
                             placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
                         />
 
                         {/* Contact Phone */}
-                        <Text style={styles.label}>Contact Phone (Optional)</Text>
+                        <Text style={styles.label}>Contact Phone *</Text>
                         <TextInput
                             style={styles.input}
                             value={contactPhone}
                             onChangeText={setContactPhone}
-                            placeholder="Phone number"
+                            placeholder="Phone number (required)"
                             placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
                             keyboardType="phone-pad"
                         />
@@ -224,7 +301,7 @@ export default function BookingDetails() {
                     <View style={styles.infoNote}>
                         <Ionicons name="information-circle" size={20} color="#3B82F6" />
                         <Text style={styles.infoNoteText}>
-                            Your bed will be reserved for 30 minutes. Please arrive at the
+                            Your bed will be reserved for {reservationMinutes} minutes ({emergencyService.formatTime(reservationMinutes)}). Please arrive at the
                             hospital as soon as possible.
                         </Text>
                     </View>
@@ -341,6 +418,8 @@ const getStyles = (isDark: boolean) =>
             marginHorizontal: -4,
         },
         emergencyTypeButton: {
+            flexDirection: 'row',
+            alignItems: 'center',
             backgroundColor: isDark ? '#374151' : '#F3F4F6',
             borderRadius: 8,
             paddingHorizontal: 12,
@@ -359,7 +438,37 @@ const getStyles = (isDark: boolean) =>
         },
         emergencyTypeTextActive: {
             color: '#FFFFFF',
+            fontWeight: '700',
+        },
+        bedTypeContainer: {
+            flexDirection: 'row',
+            gap: 12,
+        },
+        bedTypeButton: {
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: isDark ? '#374151' : '#F3F4F6',
+            borderRadius: 12,
+            paddingVertical: 16,
+            paddingHorizontal: 12,
+            borderWidth: 2,
+            borderColor: isDark ? '#4B5563' : '#E5E7EB',
+            gap: 8,
+        },
+        bedTypeButtonActive: {
+            backgroundColor: '#EF4444',
+            borderColor: '#DC2626',
+        },
+        bedTypeText: {
+            fontSize: 14,
             fontWeight: '600',
+            color: isDark ? '#D1D5DB' : '#6B7280',
+        },
+        bedTypeTextActive: {
+            color: '#FFFFFF',
+            fontWeight: '700',
         },
         confirmButton: {
             backgroundColor: '#10B981',

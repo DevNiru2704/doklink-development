@@ -409,14 +409,23 @@ def book_emergency_bed(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Calculate estimated arrival time
-    user_lat = float(serializer.validated_data['latitude'])
-    user_lon = float(serializer.validated_data['longitude'])
-    distance = calculate_distance(
-        user_lat, user_lon,
-        float(hospital.latitude), float(hospital.longitude)
-    )
-    estimated_arrival_minutes = int((distance / 40) * 60)
+    # Calculate estimated arrival time if coordinates provided
+    user_lat = serializer.validated_data.get('latitude')
+    user_lon = serializer.validated_data.get('longitude')
+    
+    if user_lat and user_lon:
+        distance = calculate_distance(
+            float(user_lat), float(user_lon),
+            float(hospital.latitude), float(hospital.longitude)
+        )
+        estimated_arrival_minutes = int((distance / 40) * 60)
+    else:
+        # Use provided estimated_arrival_minutes or default to 30
+        estimated_arrival_minutes = serializer.validated_data.get('estimated_arrival_minutes', 30)
+    
+    # Calculate dynamic reservation expiry based on distance
+    # Minimum 30 minutes, add 50% buffer to estimated arrival time
+    reservation_minutes = max(30, int(estimated_arrival_minutes * 1.5))
     
     # Create emergency booking
     emergency_booking = EmergencyBooking.objects.create(
@@ -424,20 +433,31 @@ def book_emergency_bed(request):
         hospital=hospital,
         emergency_type=serializer.validated_data['emergency_type'],
         bed_type=bed_type,
-        patient_condition=serializer.validated_data['patient_condition'],
-        contact_person=serializer.validated_data['contact_person'],
-        contact_phone=serializer.validated_data['contact_phone'],
-        booking_latitude=user_lat,
-        booking_longitude=user_lon,
+        patient_condition=serializer.validated_data.get('patient_condition', ''),
+        contact_person=serializer.validated_data['contact_person'],  # REQUIRED
+        contact_phone=serializer.validated_data['contact_phone'],  # REQUIRED
+        booking_latitude=float(user_lat) if user_lat else None,
+        booking_longitude=float(user_lon) if user_lon else None,
         estimated_arrival_minutes=estimated_arrival_minutes,
         notes=serializer.validated_data.get('notes', ''),
-        reservation_expires_at=timezone.now() + timedelta(minutes=30)
+        reservation_expires_at=timezone.now() + timedelta(minutes=reservation_minutes)
     )
     
-    # Decrease bed availability
+    # Decrease bed availability (with safety check)
+    hospital.refresh_from_db()  # Get latest values
     if bed_type == 'general':
+        if hospital.available_general_beds <= 0:
+            return Response(
+                {'error': 'No general beds available (race condition detected)'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         hospital.available_general_beds = F('available_general_beds') - 1
     else:
+        if hospital.available_icu_beds <= 0:
+            return Response(
+                {'error': 'No ICU beds available (race condition detected)'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         hospital.available_icu_beds = F('available_icu_beds') - 1
     hospital.save()
     hospital.refresh_from_db()
@@ -494,15 +514,31 @@ def update_booking_status(request, booking_id):
     notes = serializer.validated_data.get('notes', '')
     
     # Update status and relevant fields
+    old_status = booking.status
     booking.status = new_status
     
     if new_status == 'arrived':
         booking.arrival_time = timezone.now()
     elif new_status == 'admitted':
         booking.admission_time = timezone.now()
+        # Release the reserved bed when patient is admitted (bed now occupied by this patient)
+        hospital = booking.hospital
+        if booking.bed_type == 'general':
+            hospital.available_general_beds = F('available_general_beds') + 1
+        else:
+            hospital.available_icu_beds = F('available_icu_beds') + 1
+        hospital.save()
     elif new_status == 'cancelled':
         booking.cancellation_reason = notes
-        # Release bed
+        # Release bed when cancelled
+        hospital = booking.hospital
+        if booking.bed_type == 'general':
+            hospital.available_general_beds = F('available_general_beds') + 1
+        else:
+            hospital.available_icu_beds = F('available_icu_beds') + 1
+        hospital.save()
+    elif new_status == 'expired':
+        # Release bed when reservation expires
         hospital = booking.hospital
         if booking.bed_type == 'general':
             hospital.available_general_beds = F('available_general_beds') + 1
@@ -535,4 +571,18 @@ def get_active_booking(request):
         return Response(EmergencyBookingSerializer(booking).data)
     else:
         return Response({'message': 'No active booking'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_emergency_bookings(request):
+    """
+    Get all emergency bookings for the user (for booking history)
+    GET /api/v1/healthcare/emergency/bookings/
+    """
+    bookings = EmergencyBooking.objects.filter(
+        user=request.user
+    ).select_related('hospital').order_by('-created_at')
+    
+    return Response(EmergencyBookingSerializer(bookings, many=True).data)
 

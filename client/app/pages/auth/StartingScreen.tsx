@@ -1,6 +1,6 @@
 //Starting Screen
 import { LinearGradient } from "expo-linear-gradient";
-import {  useState } from "react";
+import { useState } from "react";
 import {
   ImageBackground,
   Pressable,
@@ -140,7 +140,7 @@ export default function StartingScreen({
           {/* Buttons */}
           <View style={styles.buttonContainer}>
             {colorScheme === "light" ? (
-              <Pressable 
+              <Pressable
                 onPress={handleLoginPress}
                 onPressIn={() => setLoginButtonPressed(true)}
                 onPressOut={() => setLoginButtonPressed(false)}
@@ -168,7 +168,7 @@ export default function StartingScreen({
             )}
 
             {colorScheme === "light" ? (
-              <Pressable 
+              <Pressable
                 onPress={handleSignUpPress}
                 onPressIn={() => setSignUpButtonPressed(true)}
                 onPressOut={() => setSignUpButtonPressed(false)}
@@ -196,7 +196,7 @@ export default function StartingScreen({
             )}
 
             {colorScheme === "light" ? (
-              <Pressable 
+              <Pressable
                 onPress={handleAboutPress}
                 onPressIn={() => setAboutButtonPressed(true)}
                 onPressOut={() => setAboutButtonPressed(false)}

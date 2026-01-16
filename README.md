@@ -21,14 +21,23 @@
 
 #### **1. Emergency Bed Booking System** (COMPLETE)
 - 🚨 **Real-time Emergency Trigger** - Find nearby hospitals instantly
-- 🏥 **Bed Availability Tracking** - Live general & ICU bed counts
-- 📍 **Location-based Search** - Haversine distance calculation (50km radius)
-- ⏱️ **30-Minute Reservation** - Auto-expire bed bookings
+- 🏥 **Bed Availability Tracking** - Live general & ICU bed counts with auto-updates
+- 📍 **Dynamic Location Search** - Adjustable radius (5-200km) with distance calculation
+- ⏱️ **Dynamic Reservation Time** - 30min to 3h 45min based on distance (1.5x travel time)
+- 🔄 **Multi-select Emergency Types** - Choose multiple conditions (Chest Pain, Difficulty Breathing, etc.)
+- 🛏️ **Bed Type Selection** - Choose between General or ICU beds
 - 📊 **9 Emergency Types** - Accident, Cardiac, Stroke, Respiratory, Pregnancy, Poisoning, Burns, Pediatric, Other
 - 💳 **Insurance Display** - Show accepted insurance providers
 - 💰 **Cost Estimates** - Emergency and general admission costs
 - 📱 **Status Tracking** - Reserved → Patient On Way → Arrived → Admitted
-- 📞 **Contact Management** - Emergency contact person details
+- ⏰ **Live Countdown Timer** - Real-time reservation expiry tracking
+- 📞 **Required Contact Fields** - Emergency contact person details (validated)
+- 📍 **Call Hospital / Get Directions** - Direct integration with phone & maps
+- 📋 **Booking History** - Filter by status with detailed view
+- 🔔 **Active Booking Banner** - Dashboard notification for active emergency
+- 🔄 **Automatic Bed Management** - Decrements on booking, releases on cancel/admit/expire
+- 🛡️ **Race Condition Protection** - Prevents negative bed counts
+- ⚡ **Expiration Management** - Auto-expire and release beds via management command
 
 #### **2. User Authentication & Profile**
 - 🔐 JWT token-based authentication
@@ -48,8 +57,6 @@
 - 📊 Dashboard with summary stats
 
 ### 🚧 In Development
-- Patient medical history & allergies
-- Insurance management
 - Planned admission booking
 - Doctor appointment booking
 - Hospital dashboard (web - handled by team)
@@ -64,30 +71,39 @@
 ```
 1. User taps EMERGENCY button
 2. App requests location permission
-3. System finds nearby hospitals (within 50km)
+3. System finds nearby hospitals (adjustable radius: 5-200km)
 4. User sees hospitals sorted by distance with:
    - Available beds (General/ICU)
    - Insurance acceptance
    - Estimated cost
    - Travel time
 5. User selects hospital and fills details:
-   - Emergency type
-   - Patient condition
-   - Contact person
-6. Bed reserved for 30 minutes
-7. User updates status: On Way → Arrived → Admitted
+   - Emergency type(s) - multi-select
+   - Bed type (General/ICU)
+   - Patient condition (optional)
+   - Contact person (required)
+   - Contact phone (required)
+6. Bed reserved dynamically (30min - 3h 45min based on distance)
+7. Real-time countdown timer displayed
+8. User updates status: On Way → Arrived → Admitted
+9. View booking history with status filters
 ```
 
 **Backend Features:**
 - Automatic bed count decrement on booking
-- Automatic bed release on cancellation
+- Automatic bed release on cancellation, admission, or expiration
 - Distance calculation using Haversine formula
-- Estimated travel time (40 km/h average)
+- Dynamic reservation time: max(30min, estimated_arrival × 1.5)
+- Race condition protection for bed allocation
+- Management command for auto-expiration (`expire_reservations`)
+- Database constraints prevent negative bed counts
 
-**Test Hospitals (Kolkata Area):**
-1. **Apollo Gleneagles** - 18 general beds, 5 ICU beds available
+**Test Hospitals (Kolkata & Durgapur Area):**
+1. **Apollo Gleneagles Kolkata** - 18 general beds, 5 ICU beds available
 2. **AMRI Salt Lake** - 14 general beds, 4 ICU beds available
 3. **Fortis Anandapur** - 22 general beds, 7 ICU beds available
+4. **AIIMS Durgapur** - 30 general beds, 8 ICU beds available
+5. **Durgapur Steel Plant Hospital** - 25 general beds, 6 ICU beds available
 
 ---
 
@@ -158,11 +174,12 @@ client/
 
 ### Emergency Booking
 - `POST /api/v1/healthcare/emergency/trigger/` - Trigger emergency, get nearby hospitals
-- `GET /api/v1/healthcare/emergency/hospitals/nearby/` - Search hospitals by location
-- `POST /api/v1/healthcare/emergency/book-bed/` - Book emergency bed
+- `GET /api/v1/healthcare/emergency/hospitals/nearby/` - Search hospitals by location (with radius param)
+- `POST /api/v1/healthcare/emergency/book-bed/` - Book emergency bed (supports multi-type, bed selection)
 - `GET /api/v1/healthcare/emergency/booking/{id}/` - Get booking details
-- `PUT /api/v1/healthcare/emergency/booking/{id}/status/` - Update booking status
+- `PUT /api/v1/healthcare/emergency/booking/{id}/status/` - Update booking status (arrived/admitted/cancelled/expired)
 - `GET /api/v1/healthcare/emergency/active/` - Get user's active booking
+- `GET /api/v1/healthcare/emergency/bookings/` - Get all user's emergency bookings (booking history)
 
 ### Healthcare Management
 - `GET /api/v1/healthcare/hospitals/` - List all hospitals
@@ -227,10 +244,50 @@ curl -X POST http://192.168.1.107:8000/api/v1/healthcare/emergency/book-bed/ \
 # Populate test hospitals
 python manage.py populate_test_hospitals
 
+# Expire old reservations (run every 5-10 minutes in production)
+python manage.py expire_reservations
+
 # Run migrations
 python manage.py makemigrations
 python manage.py migrate
 ```
+
+#### Automated Bed Expiration
+
+For production, set up automated expiration of old reservations:
+
+**Option 1: Cron Job (Linux/macOS)**
+```bash
+# Edit crontab
+crontab -e
+
+# Add this line to run every 5 minutes
+*/5 * * * * cd /path/to/doklink/server/doklink && /path/to/python manage.py expire_reservations >> /var/log/doklink/expire_reservations.log 2>&1
+```
+
+**Option 2: Task Scheduler (Celery Beat)**
+```python
+# In celery.py
+from celery import shared_task
+from django.core.management import call_command
+
+@shared_task
+def expire_old_reservations():
+    call_command('expire_reservations')
+
+app.conf.beat_schedule = {
+    'expire-reservations-every-5-minutes': {
+        'task': 'healthcare.tasks.expire_old_reservations',
+        'schedule': 300.0,  # 5 minutes
+    },
+}
+```
+
+**What it does:**
+- Finds reservations with status `reserved` or `patient_on_way` that have passed their expiration time
+- Updates status to `expired`
+- Releases the bed back to hospital inventory
+- Logs each expired booking for monitoring
 
 ---
 
@@ -361,18 +418,27 @@ npx expo start
 ## 📊 Project Status
 
 ### ✅ Completed (100%)
-**Emergency Bed Booking System**
-- Backend: 6 API endpoints, 2 database models, distance calculation
-- Frontend: 4 screens (Home, Hospital Selection, Booking Details, Hospital Details)
-- Features: Real-time bed tracking, 30-min reservation, status updates
-- Test Data: 3 Kolkata hospitals with realistic data
+**Emergency Bed Booking System - MVP COMPLETE**
+- Backend: 7 API endpoints, 2 database models, distance calculation, bed management
+- Frontend: 5 screens (Home, Hospital Selection, Booking Details, Active Booking, Booking History)
+- Features: 
+  - Multi-select emergency types
+  - General/ICU bed selection
+  - Dynamic radius control (5-200km)
+  - Dynamic reservation time (30min - 3h 45min)
+  - Real-time countdown timer
+  - Status tracking with "I've Arrived" button
+  - Booking history with filters
+  - Active booking dashboard banner
+  - Automatic bed count management
+  - Race condition protection
+  - Auto-expiration system
+- Test Data: 16 hospitals (9 Kolkata + 4 Durgapur/Asansol + 3 others)
 
 ### 🚧 In Progress (0%)
-- Patient profile enhancement (medical history, allergies)
-- Insurance management
-- Active booking screen with countdown
-- Booking history
 - Planned admission booking
+- Doctor appointment booking
+- Hospital dashboard (web - handled by team)
 
 ### 📅 Planned
 - Doctor appointment booking
@@ -478,9 +544,9 @@ For questions or issues:
 
 ---
 
-**Last Updated:** January 16, 2026  
-**Status:** Emergency Booking System Complete ✅  
-**Next Phase:** Patient Profile & Insurance Management
+**Last Updated:** January 17, 2026  
+**Status:** Emergency Booking System - MVP COMPLETE ✅  
+**Next Phase:** Planned Admission & Doctor Appointments
 
 - Both devices are on the same WiFi network
 - Windows Firewall allows the connection

@@ -32,6 +32,7 @@ export default function HospitalSelection() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [selectedHospital, setSelectedHospital] = useState<number | null>(null);
+    const [searchRadius, setSearchRadius] = useState(50); // Default 50km
 
     const latitude = parseFloat(params.latitude as string);
     const longitude = parseFloat(params.longitude as string);
@@ -41,13 +42,19 @@ export default function HospitalSelection() {
         loadNearbyHospitals();
     }, []);
 
+    useEffect(() => {
+        if (!loading) {
+            loadNearbyHospitals();
+        }
+    }, [searchRadius]);
+
     const loadNearbyHospitals = async () => {
         try {
             setLoading(true);
             const nearbyHospitals = await emergencyService.getNearbyHospitals(
                 latitude,
                 longitude,
-                10 // 10km radius
+                searchRadius
             );
 
             // Calculate estimated time for each hospital
@@ -97,7 +104,7 @@ export default function HospitalSelection() {
         try {
             // Navigate to booking confirmation with hospital details
             router.push({
-                pathname: '/pages/BookingDetails',
+                pathname: '/pages/emergency/BookingDetails',
                 params: {
                     hospitalId: hospital.id.toString(),
                     hospitalName: hospital.name,
@@ -118,7 +125,7 @@ export default function HospitalSelection() {
 
     const handleViewDetails = (hospital: NearbyHospitalResponse) => {
         router.push({
-            pathname: '/pages/HospitalDetails',
+            pathname: '/pages/emergency/HospitalDetails',
             params: { hospitalId: hospital.id.toString() },
         });
     };
@@ -325,6 +332,55 @@ export default function HospitalSelection() {
                         <Text style={styles.headerSubtitle}>
                             {hospitals.length} hospitals found
                         </Text>
+                    </View>
+                </View>
+
+                {/* Radius Slider */}
+                <View style={styles.radiusSliderContainer}>
+                    <View style={styles.radiusHeader}>
+                        <Ionicons name="location" size={20} color={isDark ? '#60A5FA' : '#3B82F6'} />
+                        <Text style={styles.radiusLabel}>Search Radius: {searchRadius} km</Text>
+                    </View>
+                    <View style={styles.sliderWrapper}>
+                        <TouchableOpacity
+                            style={styles.radiusButton}
+                            onPress={() => setSearchRadius(Math.max(5, searchRadius - 10))}
+                        >
+                            <Ionicons name="remove" size={20} color={isDark ? '#FFF' : '#000'} />
+                        </TouchableOpacity>
+                        <View style={styles.sliderContainer}>
+                            <View style={styles.sliderTrack}>
+                                <View
+                                    style={[
+                                        styles.sliderFill,
+                                        { width: `${(searchRadius / 200) * 100}%` }
+                                    ]}
+                                />
+                            </View>
+                            <View style={styles.sliderMarkers}>
+                                {[25, 50, 100, 150, 200].map(val => (
+                                    <TouchableOpacity
+                                        key={val}
+                                        style={[
+                                            styles.sliderMarker,
+                                            searchRadius === val && styles.sliderMarkerActive
+                                        ]}
+                                        onPress={() => setSearchRadius(val)}
+                                    >
+                                        <Text style={[
+                                            styles.sliderMarkerText,
+                                            searchRadius === val && styles.sliderMarkerTextActive
+                                        ]}>{val}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+                        <TouchableOpacity
+                            style={styles.radiusButton}
+                            onPress={() => setSearchRadius(Math.min(200, searchRadius + 10))}
+                        >
+                            <Ionicons name="add" size={20} color={isDark ? '#FFF' : '#000'} />
+                        </TouchableOpacity>
                     </View>
                 </View>
 
@@ -613,5 +669,71 @@ const getStyles = (isDark: boolean) =>
             fontSize: 14,
             fontWeight: '700',
             color: '#FFFFFF',
+        },
+        radiusSliderContainer: {
+            backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+            padding: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: isDark ? '#374151' : '#E5E7EB',
+        },
+        radiusHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: 12,
+        },
+        radiusLabel: {
+            fontSize: 16,
+            fontWeight: '600',
+            color: isDark ? '#FFFFFF' : '#1F2937',
+            marginLeft: 8,
+        },
+        sliderWrapper: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+        },
+        radiusButton: {
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: isDark ? '#374151' : '#E5E7EB',
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        sliderContainer: {
+            flex: 1,
+        },
+        sliderTrack: {
+            height: 6,
+            backgroundColor: isDark ? '#374151' : '#E5E7EB',
+            borderRadius: 3,
+            overflow: 'hidden',
+        },
+        sliderFill: {
+            height: '100%',
+            backgroundColor: isDark ? '#60A5FA' : '#3B82F6',
+            borderRadius: 3,
+        },
+        sliderMarkers: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            marginTop: 8,
+        },
+        sliderMarker: {
+            paddingVertical: 4,
+            paddingHorizontal: 8,
+            borderRadius: 4,
+        },
+        sliderMarkerActive: {
+            backgroundColor: isDark ? '#1E3A8A' : '#DBEAFE',
+        },
+        sliderMarkerText: {
+            fontSize: 11,
+            color: isDark ? '#9CA3AF' : '#6B7280',
+            fontWeight: '500',
+        },
+        sliderMarkerTextActive: {
+            color: isDark ? '#60A5FA' : '#3B82F6',
+            fontWeight: '700',
         },
     });

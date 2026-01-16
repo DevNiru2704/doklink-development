@@ -123,14 +123,15 @@ class NearbyHospitalSerializer(serializers.Serializer):
 class BookEmergencyBedSerializer(serializers.Serializer):
     """Serializer for booking emergency bed"""
     hospital_id = serializers.IntegerField(required=True)
-    emergency_type = serializers.ChoiceField(choices=EmergencyBooking.EMERGENCY_TYPE_CHOICES, required=True)
-    bed_type = serializers.ChoiceField(choices=EmergencyBooking.BED_TYPE_CHOICES, required=True)
-    patient_condition = serializers.CharField(required=True)
-    contact_person = serializers.CharField(required=True)
-    contact_phone = serializers.CharField(required=True)
-    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True)
-    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True)
-    notes = serializers.CharField(required=False, allow_blank=True)
+    emergency_type = serializers.CharField(required=True)  # Now accepts multiple types as comma-separated
+    bed_type = serializers.ChoiceField(choices=EmergencyBooking.BED_TYPE_CHOICES, required=False, default='general')
+    patient_condition = serializers.CharField(required=False, allow_blank=True, default='')
+    contact_person = serializers.CharField(required=True, max_length=200)  # REQUIRED
+    contact_phone = serializers.CharField(required=True)  # REQUIRED
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    estimated_arrival_minutes = serializers.IntegerField(required=False, allow_null=True)
 
 
 class UpdateBookingStatusSerializer(serializers.Serializer):

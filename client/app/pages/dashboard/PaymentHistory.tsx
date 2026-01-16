@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import apiClient from '../../config/api';
+import apiClient from '@/config/api';
 
 interface Payment {
     id: number;

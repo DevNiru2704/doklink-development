@@ -59,6 +59,7 @@ export interface BedAvailability {
 export interface EmergencyBookingRequest {
     hospital_id: number;
     emergency_type: string;
+    bed_type?: 'general' | 'icu';
     patient_condition?: string;
     contact_person?: string;
     contact_phone?: string;
@@ -67,6 +68,7 @@ export interface EmergencyBookingRequest {
     insurance_provider?: string;
     policy_number?: string;
     notes?: string;
+    estimated_arrival_minutes?: number;
 }
 
 export interface EmergencyBooking {
@@ -77,7 +79,7 @@ export interface EmergencyBooking {
     patient_condition?: string;
     contact_person?: string;
     contact_phone?: string;
-    status: 'reserved' | 'confirmed' | 'patient_arrived' | 'admitted' | 'cancelled' | 'expired';
+    status: 'reserved' | 'patient_on_way' | 'arrived' | 'admitted' | 'cancelled' | 'expired';
     arrival_time?: string;
     booking_date: string;
     booking_time: string;
@@ -86,11 +88,19 @@ export interface EmergencyBooking {
     notes?: string;
     created_at: string;
     updated_at: string;
+
+    // Display properties (may be returned from API)
+    status_display?: string;
+    emergency_type_display?: string;
+    bed_type?: string;
+    bed_type_display?: string;
+    estimated_arrival_minutes?: number;
+    admission_time?: string;
 }
 
 export interface BookingStatusUpdate {
     booking_id: number;
-    status: 'reserved' | 'confirmed' | 'patient_arrived' | 'admitted' | 'cancelled';
+    status: 'reserved' | 'patient_on_way' | 'arrived' | 'admitted' | 'cancelled' | 'expired';
     notes?: string;
 }
 
@@ -141,20 +151,20 @@ export const EMERGENCY_TYPES = [
 export type EmergencyType = typeof EMERGENCY_TYPES[number];
 
 // Booking status display
-export const BOOKING_STATUS_DISPLAY: Record<EmergencyBooking['status'], string> = {
+export const BOOKING_STATUS_DISPLAY: Record<string, string> = {
     reserved: 'Bed Reserved',
-    confirmed: 'Booking Confirmed',
-    patient_arrived: 'Patient Arrived',
+    patient_on_way: 'Patient On the Way',
+    arrived: 'Patient Arrived',
     admitted: 'Admitted',
     cancelled: 'Cancelled',
     expired: 'Expired',
 };
 
 // Booking status colors
-export const BOOKING_STATUS_COLORS: Record<EmergencyBooking['status'], string> = {
+export const BOOKING_STATUS_COLORS: Record<string, string> = {
     reserved: '#FFA500', // Orange
-    confirmed: '#10B981', // Green
-    patient_arrived: '#3B82F6', // Blue
+    patient_on_way: '#10B981', // Green
+    arrived: '#3B82F6', // Blue
     admitted: '#8B5CF6', // Purple
     cancelled: '#EF4444', // Red
     expired: '#6B7280', // Gray
