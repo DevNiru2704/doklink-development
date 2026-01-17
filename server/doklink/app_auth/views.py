@@ -11,7 +11,7 @@ from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
 from .models import UserProfile, OTPVerification, LoginAudit
-from .serializers import UserSignUpSerializer, UserSerializer, LoginSerializer
+from .serializers import UserSignUpSerializer, UserSerializer, LoginSerializer, ProfileSerializer
 from .otp_service import OTPService
 import random
 import string
@@ -222,14 +222,22 @@ class ProfileView(APIView):
 
     def put(self, request):
         """Update user profile"""
-        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        try:
+            profile = request.user.profile
+        except UserProfile.DoesNotExist:
+            return Response({
+                'error': 'User profile not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Use ProfileSerializer for updating profile fields
+        serializer = ProfileSerializer(profile, data=request.data, partial=True)
         
         if serializer.is_valid():
             serializer.save()
-            return Response({
-                'message': 'Profile updated successfully',
-                'user': serializer.data
-            })
+            
+            # Return full user data with updated profile
+            user_serializer = UserSerializer(request.user)
+            return Response(user_serializer.data)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

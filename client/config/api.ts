@@ -118,6 +118,9 @@ export interface UserProfile {
   // Emergency Contact (Section 2.1)
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
+  // Additional Contact Information
+  secondary_email?: string | null;
+  secondary_phone?: string | null;
   // Medical Information (Section 2.1 & 2.3)
   medical_allergies?: string | null;
   current_medications?: string | null;

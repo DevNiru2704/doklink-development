@@ -297,6 +297,14 @@ class UserSerializer(serializers.ModelSerializer):
                 'current_address': current_address,
                 'same_as_permanent': profile.same_as_permanent,
                 'preferred_language': profile.preferred_language,
+                'emergency_contact_name': profile.emergency_contact_name,
+                'emergency_contact_phone': str(profile.emergency_contact_phone) if profile.emergency_contact_phone else None,
+                'secondary_email': profile.secondary_email,
+                'secondary_phone': str(profile.secondary_phone) if profile.secondary_phone else None,
+                'medical_allergies': profile.medical_allergies,
+                'current_medications': profile.current_medications,
+                'medical_conditions': profile.medical_conditions,
+                'previous_surgeries': profile.previous_surgeries,
                 'is_verified': profile.is_verified,
                 'email_verified': profile.email_verified,
                 'phone_verified': profile.phone_verified,
@@ -415,7 +423,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     """Serializer for UserProfile with medical and emergency contact info"""
     
     permanent_address = AddressSerializer(read_only=True)
-    current_address = AddressSerializer(read_only=True)
+    current_address = AddressSerializer(read_only=False, required=False, allow_null=True)
     full_name = serializers.SerializerMethodField()
     
     class Meta:
@@ -425,6 +433,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'aadhaar_verified', 'permanent_address', 'current_address', 
             'same_as_permanent', 'preferred_language', 'referral_code',
             'emergency_contact_name', 'emergency_contact_phone',
+            'secondary_email', 'secondary_phone',
             'medical_allergies', 'current_medications', 'medical_conditions',
             'previous_surgeries', 'full_name', 'created_at', 'updated_at'
         ]
@@ -433,3 +442,26 @@ class ProfileSerializer(serializers.ModelSerializer):
     def get_full_name(self, obj):
         """Return user's full name"""
         return obj.get_full_name()
+    
+    def update(self, instance, validated_data):
+        """Update profile including current address"""
+        current_address_data = validated_data.pop('current_address', None)
+        
+        # Update current address if provided
+        if current_address_data:
+            if instance.current_address:
+                # Update existing address
+                for attr, value in current_address_data.items():
+                    setattr(instance.current_address, attr, value)
+                instance.current_address.save()
+            else:
+                # Create new address
+                address = Address.objects.create(**current_address_data)
+                instance.current_address = address
+        
+        # Update other profile fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        instance.save()
+        return instance

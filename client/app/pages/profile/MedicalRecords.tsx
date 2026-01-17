@@ -16,6 +16,7 @@ import { Formik } from 'formik';
 import * as Yup from 'yup';
 import apiClient from '../../../config/api';
 import { authService } from '../../../services/authService';
+import type { User } from '../../../config/api';
 
 interface MedicalFormValues {
     medical_allergies: string;
@@ -76,14 +77,10 @@ export default function MedicalRecords() {
     const handleSubmit = async (values: MedicalFormValues, { setSubmitting }: any) => {
         try {
             // Update medical records via API
-            const response = await apiClient.patch('/auth/profile/update/', values);
+            const response = await apiClient.put<User>('/auth/profile/', values);
 
-            // Update stored user
-            const user = await authService.getStoredUser();
-            if (user?.profile) {
-                user.profile = Object.assign({}, user.profile, response.data);
-                await authService.storeUser(user);
-            }
+            // Update stored user with the full response (which includes updated profile)
+            await authService.storeUser(response.data);
 
             Alert.alert('Success', 'Medical records updated successfully');
             router.back();

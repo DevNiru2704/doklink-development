@@ -158,6 +158,10 @@ class UserProfile(models.Model):
     emergency_contact_name = models.CharField(max_length=255, blank=True, null=True)
     emergency_contact_phone = PhoneNumberField(blank=True, null=True)
     
+    # Additional Contact Information
+    secondary_email = models.EmailField(blank=True, null=True, help_text="Additional email for account recovery")
+    secondary_phone = PhoneNumberField(blank=True, null=True, help_text="Additional phone number")
+    
     # Medical Information (Section 2.1 & 2.3)
     medical_allergies = models.TextField(
         blank=True,
