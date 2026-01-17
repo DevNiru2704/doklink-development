@@ -104,7 +104,7 @@ export default function HospitalSelection() {
         try {
             // Navigate to booking confirmation with hospital details
             router.push({
-                pathname: '/pages/emergency/BookingDetails',
+                pathname: '/pages/dashboard/BookingDetails',
                 params: {
                     hospitalId: hospital.id.toString(),
                     hospitalName: hospital.name,
@@ -125,7 +125,7 @@ export default function HospitalSelection() {
 
     const handleViewDetails = (hospital: NearbyHospitalResponse) => {
         router.push({
-            pathname: '/pages/emergency/HospitalDetails',
+            pathname: '/pages/dashboard/HospitalDetails',
             params: { hospitalId: hospital.id.toString() },
         });
     };

@@ -81,7 +81,7 @@ export default function Home() {
 
       // Navigate to hospital selection with location
       router.push({
-        pathname: '/pages/emergency/HospitalSelection',
+        pathname: '/pages/dashboard/HospitalSelection',
         params: {
           latitude: latitude.toString(),
           longitude: longitude.toString(),
@@ -280,7 +280,7 @@ export default function Home() {
             <View style={styles.quickActionsGrid}>
               <TouchableOpacity
                 style={styles.quickActionCard}
-                onPress={() => router.push('/pages/emergency/BookingHistory')}
+                onPress={() => router.push('/pages/dashboard/BookingHistory')}
               >
                 <Ionicons
                   name="time-outline"
