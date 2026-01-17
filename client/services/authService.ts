@@ -663,6 +663,10 @@ class AuthService {
       language: formValues.language, // Django expects 'language', not 'preferred_language'
       referral_code: formValues.referralCode?.trim() || undefined,
 
+      // Personal preferences (required)
+      gender: formValues.gender,
+      pronoun: formValues.pronoun,
+
       // Agreements - Django expects 'agreements' as a dict
       agreements: formValues.agreements,
     };

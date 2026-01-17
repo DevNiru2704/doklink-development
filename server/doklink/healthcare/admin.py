@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Doctor, Hospital, Treatment, Booking, Payment
+from .models import Doctor, Hospital, Treatment, Booking, Payment, InsuranceProvider, HospitalInsurance, EmergencyBooking, Insurance
 
 
 @admin.register(Doctor)
@@ -41,3 +41,36 @@ class PaymentAdmin(admin.ModelAdmin):
     list_filter = ['payment_type', 'status', 'due_date']
     date_hierarchy = 'due_date'
     raw_id_fields = ['user', 'hospital', 'doctor', 'booking']
+
+
+@admin.register(InsuranceProvider)
+class InsuranceProviderAdmin(admin.ModelAdmin):
+    list_display = ['name', 'provider_code', 'is_active', 'created_at']
+    search_fields = ['name', 'provider_code']
+    list_filter = ['is_active']
+
+
+@admin.register(HospitalInsurance)
+class HospitalInsuranceAdmin(admin.ModelAdmin):
+    list_display = ['hospital', 'insurance_provider', 'is_in_network', 'copay_amount', 'is_active']
+    search_fields = ['hospital__name', 'insurance_provider__name']
+    list_filter = ['is_in_network', 'is_active']
+    raw_id_fields = ['hospital', 'insurance_provider']
+
+
+@admin.register(EmergencyBooking)
+class EmergencyBookingAdmin(admin.ModelAdmin):
+    list_display = ['user', 'hospital', 'emergency_type', 'bed_type', 'status', 'created_at']
+    search_fields = ['user__username', 'user__email', 'hospital__name']
+    list_filter = ['status', 'bed_type', 'created_at']
+    date_hierarchy = 'created_at'
+    raw_id_fields = ['user', 'hospital']
+
+
+@admin.register(Insurance)
+class InsuranceAdmin(admin.ModelAdmin):
+    list_display = ['user', 'provider_name', 'policy_number', 'policy_expiry', 'is_active']
+    search_fields = ['user__username', 'user__email', 'provider_name', 'policy_number']
+    list_filter = ['is_active', 'coverage_type', 'policy_expiry']
+    date_hierarchy = 'policy_expiry'
+    raw_id_fields = ['user']

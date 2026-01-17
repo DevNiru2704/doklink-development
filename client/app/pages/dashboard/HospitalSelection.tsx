@@ -33,6 +33,7 @@ export default function HospitalSelection() {
     const [refreshing, setRefreshing] = useState(false);
     const [selectedHospital, setSelectedHospital] = useState<number | null>(null);
     const [searchRadius, setSearchRadius] = useState(50); // Default 50km
+    const [insuranceVisibleCount, setInsuranceVisibleCount] = useState<{ [key: number]: number }>({});
 
     const latitude = parseFloat(params.latitude as string);
     const longitude = parseFloat(params.longitude as string);
@@ -134,6 +135,16 @@ export default function HospitalSelection() {
         const hasBedsAvailable = emergencyService.hasAvailableBeds(hospital);
         const totalBeds = emergencyService.getTotalAvailableBeds(hospital);
         const isSelected = selectedHospital === hospital.id;
+
+        // Initialize visible count for this hospital if not set
+        const visibleCount = insuranceVisibleCount[hospital.id] || 3;
+
+        const handleLoadMoreInsurance = () => {
+            setInsuranceVisibleCount(prev => ({
+                ...prev,
+                [hospital.id]: (prev[hospital.id] || 3) + 3
+            }));
+        };
 
         return (
             <View key={hospital.id} style={styles.hospitalCard}>
@@ -243,28 +254,86 @@ export default function HospitalSelection() {
 
                 {/* Insurance Status */}
                 {hospital.accepts_insurance !== undefined && (
-                    <View style={styles.insuranceRow}>
-                        <Ionicons
-                            name={hospital.accepts_insurance ? 'checkmark-circle' : 'close-circle'}
-                            size={20}
-                            color={hospital.accepts_insurance ? '#10B981' : '#EF4444'}
-                        />
-                        <Text
-                            style={[
-                                styles.insuranceText,
-                                {
-                                    color: hospital.accepts_insurance
-                                        ? '#10B981'
-                                        : isDark
-                                            ? '#EF4444'
-                                            : '#DC2626',
-                                },
-                            ]}
-                        >
-                            {hospital.accepts_insurance
-                                ? 'Insurance Accepted'
-                                : 'Insurance Not Accepted'}
-                        </Text>
+                    <View style={styles.insuranceSection}>
+                        <View style={styles.insuranceHeader}>
+                            <Ionicons
+                                name={hospital.accepts_insurance ? 'shield-checkmark' : 'close-circle'}
+                                size={20}
+                                color={hospital.accepts_insurance ? '#10B981' : '#EF4444'}
+                            />
+                            <Text
+                                style={[
+                                    styles.insuranceHeaderText,
+                                    {
+                                        color: hospital.accepts_insurance
+                                            ? '#10B981'
+                                            : isDark
+                                                ? '#EF4444'
+                                                : '#DC2626',
+                                    },
+                                ]}
+                            >
+                                {hospital.accepts_insurance
+                                    ? 'Insurance Accepted'
+                                    : 'Insurance Not Accepted'}
+                            </Text>
+                        </View>
+
+                        {/* Display accepted insurance providers */}
+                        {hospital.accepts_insurance && hospital.accepted_insurance_providers && hospital.accepted_insurance_providers.length > 0 && (
+                            <View style={styles.insuranceBadgesContainer}>
+                                {hospital.accepted_insurance_providers
+                                    .slice(0, visibleCount)
+                                    .sort((a, b) => {
+                                        // Sort by in-network status alternating to distribute colors
+                                        if (a.is_in_network === b.is_in_network) return 0;
+                                        // Alternate: in-network, out-of-network, in-network, out-of-network
+                                        return 0; // Keep original order for mixed display
+                                    })
+                                    .map((provider, index) => (
+                                        <View
+                                            key={provider.id}
+                                            style={[
+                                                styles.insuranceBadge,
+                                                provider.is_in_network
+                                                    ? styles.insuranceBadgeInNetwork
+                                                    : styles.insuranceBadgeOutOfNetwork
+                                            ]}
+                                        >
+                                            <Text style={styles.insuranceBadgeText}>
+                                                {provider.name.length > 20
+                                                    ? provider.name.substring(0, 20) + '...'
+                                                    : provider.name}
+                                            </Text>
+                                            {provider.is_in_network && (
+                                                <Ionicons name="checkmark-circle" size={14} color="#10B981" style={styles.badgeIcon} />
+                                            )}
+                                        </View>
+                                    ))}
+                                {hospital.accepted_insurance_providers.length > visibleCount && (
+                                    <TouchableOpacity
+                                        style={styles.insuranceBadgeLoadMore}
+                                        onPress={handleLoadMoreInsurance}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={styles.insuranceBadgeLoadMoreText}>
+                                            +{hospital.accepted_insurance_providers.length - visibleCount} more
+                                        </Text>
+                                        <Ionicons name="chevron-down" size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
+
+                        {/* Display estimated costs if available */}
+                        {hospital.estimated_emergency_cost && hospital.estimated_emergency_cost > 0 && (
+                            <View style={styles.costRow}>
+                                <Ionicons name="cash-outline" size={16} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                                <Text style={styles.costText}>
+                                    Est. Cost: ₹{hospital.estimated_emergency_cost.toLocaleString()}
+                                </Text>
+                            </View>
+                        )}
                     </View>
                 )}
 
@@ -636,6 +705,79 @@ const getStyles = (isDark: boolean) =>
             marginLeft: 8,
             fontSize: 14,
             fontWeight: '600',
+        },
+        insuranceSection: {
+            marginBottom: 16,
+            paddingTop: 12,
+            borderTopWidth: 1,
+            borderTopColor: isDark ? '#374151' : '#E5E7EB',
+        },
+        insuranceHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: 8,
+        },
+        insuranceHeaderText: {
+            marginLeft: 8,
+            fontSize: 14,
+            fontWeight: '600',
+        },
+        insuranceBadgesContainer: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 8,
+            marginTop: 8,
+        },
+        insuranceBadge: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: 6,
+            paddingHorizontal: 10,
+            borderRadius: 16,
+            borderWidth: 1,
+        },
+        insuranceBadgeInNetwork: {
+            backgroundColor: isDark ? '#064E3B' : '#D1FAE5',
+            borderColor: '#10B981',
+        },
+        insuranceBadgeOutOfNetwork: {
+            backgroundColor: isDark ? '#374151' : '#F3F4F6',
+            borderColor: isDark ? '#4B5563' : '#D1D5DB',
+        },
+        insuranceBadgeText: {
+            fontSize: 12,
+            fontWeight: '600',
+            color: isDark ? '#FFFFFF' : '#1F2937',
+        },
+        badgeIcon: {
+            marginLeft: 4,
+        },
+        insuranceBadgeLoadMore: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: 6,
+            paddingHorizontal: 10,
+            borderRadius: 16,
+            backgroundColor: isDark ? '#374151' : '#F3F4F6',
+            borderWidth: 1,
+            borderColor: isDark ? '#4B5563' : '#D1D5DB',
+        },
+        insuranceBadgeLoadMoreText: {
+            fontSize: 12,
+            fontWeight: '600',
+            color: isDark ? '#9CA3AF' : '#6B7280',
+            marginRight: 4,
+        },
+        costRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginTop: 8,
+        },
+        costText: {
+            marginLeft: 6,
+            fontSize: 13,
+            fontWeight: '600',
+            color: isDark ? '#9CA3AF' : '#6B7280',
         },
         actionRow: {
             flexDirection: 'row',

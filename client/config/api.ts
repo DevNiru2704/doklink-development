@@ -105,6 +105,8 @@ export interface UserProfile {
   profile_picture?: string;
   aadhaar_number: string;
   aadhaar_verified: boolean;
+  gender: string;
+  pronoun: string;
   permanent_address: Address;
   current_address: Address;
   same_as_permanent: boolean;
@@ -160,6 +162,8 @@ export interface SignUpRequest {
   date_of_birth?: string;
   profile_picture?: string;
   aadhaar_number: string;
+  gender: string;
+  pronoun: string;
 
   // Address Info
   permanent_address: {

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, Insurance
+from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, Insurance, InsuranceProvider, HospitalInsurance
 from django.utils import timezone
 from datetime import timedelta
 
@@ -14,6 +14,7 @@ class HospitalSerializer(serializers.ModelSerializer):
     # Calculated fields for emergency booking
     distance = serializers.FloatField(read_only=True, required=False)
     estimated_time = serializers.IntegerField(read_only=True, required=False)
+    accepted_insurance_providers = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Hospital
@@ -21,9 +22,25 @@ class HospitalSerializer(serializers.ModelSerializer):
             'id', 'name', 'address', 'city', 'state', 'phone_number', 
             'latitude', 'longitude', 'total_general_beds', 'available_general_beds',
             'total_icu_beds', 'available_icu_beds', 'accepts_insurance',
-            'insurance_providers', 'estimated_emergency_cost', 
-            'estimated_general_admission_cost', 'distance', 'estimated_time'
+            'insurance_providers', 'accepted_insurance_providers',
+            'estimated_emergency_cost', 'estimated_general_admission_cost', 
+            'distance', 'estimated_time'
         ]
+    
+    def get_accepted_insurance_providers(self, obj):
+        """Get list of accepted insurance providers with network status"""
+        try:
+            hospital_insurances = obj.accepted_insurances.filter(is_active=True).select_related('insurance_provider')
+            return [{
+                'id': hi.insurance_provider.id,
+                'name': hi.insurance_provider.name,
+                'provider_code': hi.insurance_provider.provider_code,
+                'is_in_network': hi.is_in_network,
+                'copay_amount': str(hi.copay_amount)
+            } for hi in hospital_insurances]
+        except Exception as e:
+            # Return empty list if there's any error fetching insurance data
+            return []
 
 
 class TreatmentSerializer(serializers.ModelSerializer):
@@ -190,3 +207,51 @@ class InsuranceSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Policy expiry date cannot be in the past")
         return value
 
+
+class InsuranceProviderSerializer(serializers.ModelSerializer):
+    """Serializer for Insurance Provider model"""
+    
+    class Meta:
+        model = InsuranceProvider
+        fields = ['id', 'name', 'provider_code', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class HospitalInsuranceSerializer(serializers.ModelSerializer):
+    """Serializer for Hospital-Insurance relationship"""
+    insurance_provider_name = serializers.CharField(source='insurance_provider.name', read_only=True)
+    insurance_provider_code = serializers.CharField(source='insurance_provider.provider_code', read_only=True)
+    hospital_name = serializers.CharField(source='hospital.name', read_only=True)
+    network_status = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = HospitalInsurance
+        fields = [
+            'id', 'hospital', 'hospital_name', 'insurance_provider', 
+            'insurance_provider_name', 'insurance_provider_code',
+            'is_in_network', 'network_status', 'copay_amount', 
+            'notes', 'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+    
+    def get_network_status(self, obj):
+        """Return human-readable network status"""
+        return "In-Network" if obj.is_in_network else "Out-of-Network"
+
+
+class InsuranceVerificationSerializer(serializers.Serializer):
+    """Serializer for verifying insurance at a hospital"""
+    hospital_id = serializers.IntegerField(required=True)
+    insurance_provider_id = serializers.IntegerField(required=True)
+    
+    def validate_hospital_id(self, value):
+        """Ensure hospital exists"""
+        if not Hospital.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Hospital not found")
+        return value
+    
+    def validate_insurance_provider_id(self, value):
+        """Ensure insurance provider exists"""
+        if not InsuranceProvider.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Insurance provider not found")
+        return value

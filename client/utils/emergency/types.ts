@@ -6,6 +6,14 @@ export interface Location {
     longitude: number;
 }
 
+export interface InsuranceProvider {
+    id: number;
+    name: string;
+    provider_code: string;
+    is_in_network: boolean;
+    copay_amount: string;
+}
+
 export interface Hospital {
     id: number;
     name: string;
@@ -26,6 +34,11 @@ export interface Hospital {
     available_general_beds?: number;
     total_icu_beds?: number;
     available_icu_beds?: number;
+
+    // Insurance
+    accepts_insurance?: boolean;
+    insurance_providers?: string;
+    accepted_insurance_providers?: InsuranceProvider[];
 
     // Cost estimation
     estimated_emergency_cost?: number;

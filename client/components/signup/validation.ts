@@ -137,6 +137,14 @@ export const signUpValidationSchema = Yup.object().shape({
             return patterns.some(pattern => pattern.test(cleaned));
         }),
 
+    gender: Yup.string()
+        .required("Gender is required")
+        .notOneOf([""], "Please select your gender"),
+
+    pronoun: Yup.string()
+        .required("Preferred pronoun/title is required")
+        .notOneOf([""], "Please select your preferred pronoun/title"),
+
     permanentAddress: Yup.object().shape({
         address: Yup.string()
             .trim()

@@ -3,10 +3,13 @@ import React from "react";
 import { View, Text, TextInput, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Picker } from "@react-native-picker/picker";
 import { PersonalInfoSectionProps } from "./types";
 
 interface PersonalInfoSectionPropsExtended extends PersonalInfoSectionProps {
     aadhaarNumber: string;
+    genderOptions: { label: string; value: string }[];
+    pronounOptions: { label: string; value: string }[];
 }
 
 export default function PersonalInfoSection({
@@ -21,7 +24,9 @@ export default function PersonalInfoSection({
     selectedDate,
     setShowDatePicker,
     onDateChange,
-    aadhaarNumber
+    aadhaarNumber,
+    genderOptions,
+    pronounOptions
 }: PersonalInfoSectionPropsExtended) {
 
     return (
@@ -98,6 +103,56 @@ export default function PersonalInfoSection({
                 </View>
                 {errors.phoneNumber && touched.phoneNumber && (
                     <Text style={styles.errorText}>{errors.phoneNumber}</Text>
+                )}
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                    Gender<Text style={styles.requiredAsterisk}> *</Text>
+                </Text>
+                <View style={[styles.textInput, styles.pickerContainer, errors.gender && touched.gender && styles.errorInput]}>
+                    <Picker
+                        selectedValue={values.gender}
+                        onValueChange={(value) => setFieldValue("gender", value)}
+                        style={styles.picker}
+                    >
+                        <Picker.Item label="Select Gender" value="" />
+                        {genderOptions.map((option) => (
+                            <Picker.Item
+                                key={option.value}
+                                label={option.label}
+                                value={option.value}
+                            />
+                        ))}
+                    </Picker>
+                </View>
+                {errors.gender && touched.gender && (
+                    <Text style={styles.errorText}>{errors.gender}</Text>
+                )}
+            </View>
+
+            <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                    Preferred Pronoun/Title<Text style={styles.requiredAsterisk}> *</Text>
+                </Text>
+                <View style={[styles.textInput, styles.pickerContainer, errors.pronoun && touched.pronoun && styles.errorInput]}>
+                    <Picker
+                        selectedValue={values.pronoun}
+                        onValueChange={(value) => setFieldValue("pronoun", value)}
+                        style={styles.picker}
+                    >
+                        <Picker.Item label="Select Pronoun" value="" />
+                        {pronounOptions.map((option) => (
+                            <Picker.Item
+                                key={option.value}
+                                label={option.label}
+                                value={option.value}
+                            />
+                        ))}
+                    </Picker>
+                </View>
+                {errors.pronoun && touched.pronoun && (
+                    <Text style={styles.errorText}>{errors.pronoun}</Text>
                 )}
             </View>
         </View>

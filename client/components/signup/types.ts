@@ -7,6 +7,8 @@ export interface SignUpFormValues {
     confirmPassword: string;
     dob: string;
     phoneNumber: string;
+    gender: string;
+    pronoun: string;
     profilePicture: any;
     permanentAddress: {
         address: string;

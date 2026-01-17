@@ -5,7 +5,8 @@ from .views import (
     BookingViewSet, PaymentViewSet, DashboardViewSet, InsuranceViewSet,
     trigger_emergency, get_nearby_hospitals, book_emergency_bed,
     get_emergency_booking, update_booking_status, get_active_booking,
-    get_emergency_bookings
+    get_emergency_bookings, InsuranceProviderViewSet, HospitalInsuranceViewSet,
+    get_hospital_accepted_insurances, verify_insurance_for_hospital
 )
 
 router = DefaultRouter()
@@ -16,6 +17,8 @@ router.register(r'bookings', BookingViewSet, basename='booking')
 router.register(r'payments', PaymentViewSet, basename='payment')
 router.register(r'dashboard', DashboardViewSet, basename='dashboard')
 router.register(r'insurance', InsuranceViewSet, basename='insurance')
+router.register(r'insurance-providers', InsuranceProviderViewSet, basename='insurance-provider')
+router.register(r'hospital-insurances', HospitalInsuranceViewSet, basename='hospital-insurance')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -28,4 +31,8 @@ urlpatterns = [
     path('emergency/booking/<int:booking_id>/status/', update_booking_status, name='emergency-booking-status'),
     path('emergency/active/', get_active_booking, name='emergency-active-booking'),
     path('emergency/bookings/', get_emergency_bookings, name='emergency-bookings-list'),
+    
+    # Insurance verification endpoints
+    path('hospitals/<int:hospital_id>/accepted-insurances/', get_hospital_accepted_insurances, name='hospital-accepted-insurances'),
+    path('insurance/verify/', verify_insurance_for_hospital, name='insurance-verify'),
 ]

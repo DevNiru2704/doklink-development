@@ -72,6 +72,8 @@ export default function SignUp({
     confirmPassword: "",
     dob: "",
     phoneNumber: "",
+    gender: "",
+    pronoun: "",
     profilePicture: DefaultProfileImage,
     permanentAddress: {
       address: "",
@@ -95,7 +97,7 @@ export default function SignUp({
       notifications: false,
     },
   };
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -114,6 +116,22 @@ export default function SignUp({
     "Kannada",
     "Malayalam",
     "Punjabi",
+  ];
+
+  const genderOptions = [
+    { label: "Male", value: "male" },
+    { label: "Female", value: "female" },
+    { label: "Other", value: "other" },
+    { label: "Prefer not to say", value: "prefer_not_to_say" },
+  ];
+
+  const pronounOptions = [
+    { label: "Mr.", value: "mr" },
+    { label: "Mrs.", value: "mrs" },
+    { label: "Ms.", value: "ms" },
+    { label: "Mx.", value: "mx" },
+    { label: "Dr.", value: "dr" },
+    { label: "Other", value: "other" },
   ];
 
   // Animation
@@ -147,13 +165,13 @@ export default function SignUp({
     setStatus(null);
     setIsLoading(true);
     setSubmitting(true);
-    
+
     try {
       const valuesWithAadhaar = {
         ...values,
         aadhaarNumber: aadhaarNumber
       };
-      
+
       // Upload profile picture to Cloudinary if selected
       let profilePictureUrl = null;
       if (valuesWithAadhaar.profilePicture?.uri && valuesWithAadhaar.profilePicture.uri.startsWith('file://')) {
@@ -161,7 +179,7 @@ export default function SignUp({
           type: 'info',
           message: 'Uploading profile picture...'
         });
-        
+
         try {
           profilePictureUrl = await cloudinaryService.uploadImage(
             valuesWithAadhaar.profilePicture.uri,
@@ -175,22 +193,22 @@ export default function SignUp({
           });
         }
       }
-      
+
       const finalValues = {
         ...valuesWithAadhaar,
         profilePicture: profilePictureUrl ? { url: profilePictureUrl } : null
       };
-      
+
       setStatus({
         type: 'info',
         message: 'Creating your account...'
       });
-      
+
       const signUpData = authService.transformSignUpData(finalValues);
       await authService.signUp(signUpData);
-      
+
       onSignUp();
-      
+
     } catch (error: any) {
       setStatus({
         type: 'error',
@@ -262,9 +280,9 @@ export default function SignUp({
             style={styles.container}
             resizeMode="cover"
           >
-            <StatusBar 
-              barStyle={colorScheme === "dark" ? "light-content" : "dark-content"} 
-              backgroundColor={colorScheme === "dark" ? "#000000" : "#F8F9FA"} 
+            <StatusBar
+              barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
+              backgroundColor={colorScheme === "dark" ? "#000000" : "#F8F9FA"}
             />
 
             {/* Gradient Overlay */}
@@ -289,10 +307,10 @@ export default function SignUp({
               {/* Header */}
               <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={onBack}>
-                  <Ionicons 
-                    name="arrow-back" 
-                    size={24} 
-                    color={colorScheme === "dark" ? "#E2E8F0" : "#005F99"} 
+                  <Ionicons
+                    name="arrow-back"
+                    size={24}
+                    color={colorScheme === "dark" ? "#E2E8F0" : "#005F99"}
                   />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Create Account</Text>
@@ -344,6 +362,8 @@ export default function SignUp({
                   setShowDatePicker={setShowDatePicker}
                   onDateChange={onDateChange}
                   aadhaarNumber={aadhaarNumber}
+                  genderOptions={genderOptions}
+                  pronounOptions={pronounOptions}
                 />
 
                 {/* Address Information */}

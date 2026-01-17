@@ -323,3 +323,50 @@ class Insurance(models.Model):
     
     def __str__(self):
         return f"{self.provider_name} - {self.policy_number} ({self.user.username})"
+
+
+class InsuranceProvider(models.Model):
+    """Static list of insurance providers for standardization"""
+    name = models.CharField(max_length=200, unique=True, help_text="Insurance provider name")
+    provider_code = models.CharField(max_length=50, unique=True, help_text="Unique code for the provider")
+    is_active = models.BooleanField(default=True, help_text="Whether this provider is currently active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Insurance Provider"
+        verbose_name_plural = "Insurance Providers"
+        ordering = ['name']
+        indexes = [
+            models.Index(fields=['provider_code']),
+            models.Index(fields=['is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.provider_code})"
+
+
+class HospitalInsurance(models.Model):
+    """Relationship between hospitals and accepted insurance providers"""
+    hospital = models.ForeignKey(Hospital, on_delete=models.CASCADE, related_name='accepted_insurances')
+    insurance_provider = models.ForeignKey(InsuranceProvider, on_delete=models.CASCADE, related_name='hospitals')
+    is_in_network = models.BooleanField(default=True, help_text="Whether hospital is in-network for this provider")
+    copay_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Copay amount in rupees (0 if fully covered)")
+    notes = models.TextField(blank=True, help_text="Special conditions or notes about coverage")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Hospital Insurance"
+        verbose_name_plural = "Hospital Insurances"
+        unique_together = ['hospital', 'insurance_provider']
+        ordering = ['hospital', 'insurance_provider']
+        indexes = [
+            models.Index(fields=['hospital', 'is_in_network']),
+            models.Index(fields=['insurance_provider', 'is_active']),
+        ]
+    
+    def __str__(self):
+        network_status = "In-Network" if self.is_in_network else "Out-of-Network"
+        return f"{self.hospital.name} - {self.insurance_provider.name} ({network_status})"

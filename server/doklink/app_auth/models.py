@@ -82,6 +82,41 @@ class UserProfile(models.Model):
         help_text="Phone number with country code"
     )
     date_of_birth = models.DateField(null=True, blank=True)
+    
+    # Gender and Pronouns
+    GENDER_CHOICES = [
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
+        ('prefer_not_to_say', 'Prefer not to say'),
+    ]
+    
+    PRONOUN_CHOICES = [
+        ('mr', 'Mr.'),
+        ('mrs', 'Mrs.'),
+        ('ms', 'Ms.'),
+        ('mx', 'Mx.'),
+        ('dr', 'Dr.'),
+        ('other', 'Other'),
+    ]
+    
+    gender = models.CharField(
+        max_length=20,
+        choices=GENDER_CHOICES,
+        blank=False,
+        null=False,
+        default='prefer_not_to_say',
+        help_text="Gender identity"
+    )
+    pronoun = models.CharField(
+        max_length=10,
+        choices=PRONOUN_CHOICES,
+        blank=False,
+        null=False,
+        default='other',
+        help_text="Preferred pronoun/title"
+    )
+    
     profile_picture = models.URLField(
         null=True,
         blank=True,

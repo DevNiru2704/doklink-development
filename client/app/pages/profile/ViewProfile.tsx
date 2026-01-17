@@ -120,6 +120,20 @@ export default function ViewProfile() {
                         isDark={isDark}
                     />
                     <InfoRow
+                        label="Gender"
+                        value={user?.profile?.gender ?
+                            user.profile.gender.charAt(0).toUpperCase() + user.profile.gender.slice(1).replace('_', ' ')
+                            : 'N/A'}
+                        isDark={isDark}
+                    />
+                    <InfoRow
+                        label="Preferred Pronoun"
+                        value={user?.profile?.pronoun ?
+                            user.profile.pronoun.toUpperCase().replace('_', ' ') + '.'
+                            : 'N/A'}
+                        isDark={isDark}
+                    />
+                    <InfoRow
                         label="Aadhaar Number"
                         value={user?.profile?.aadhaar_number || 'N/A'}
                         isDark={isDark}

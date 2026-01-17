@@ -49,6 +49,8 @@ class UserSignUpSerializer(serializers.Serializer):
     phone_number = serializers.CharField()
     profile_picture = serializers.URLField(required=False, allow_null=True, allow_blank=True)
     aadhaar_number = serializers.CharField(max_length=12)
+    gender = serializers.ChoiceField(choices=UserProfile.GENDER_CHOICES, required=True)
+    pronoun = serializers.ChoiceField(choices=UserProfile.PRONOUN_CHOICES, required=True)
     
     # Address fields
     permanent_address = AddressSerializer()
@@ -189,6 +191,8 @@ class UserSignUpSerializer(serializers.Serializer):
         language = validated_data.pop('language')
         referral_code = validated_data.pop('referral_code', None)
         profile_picture = validated_data.pop('profile_picture', None)
+        gender = validated_data.pop('gender', None)
+        pronoun = validated_data.pop('pronoun', None)
         
         # Split name into first and last name
         name_parts = name.split(' ', 1)
@@ -242,6 +246,8 @@ class UserSignUpSerializer(serializers.Serializer):
             same_as_permanent=same_as_permanent,
             preferred_language=language,
             referred_by=referred_by,
+            gender=gender,
+            pronoun=pronoun,
             terms_conditions_accepted=agreements_data.get('termsConditions', False),
             privacy_policy_accepted=agreements_data.get('privacyPolicy', False),
             data_consent_given=agreements_data.get('dataConsent', False),
@@ -293,6 +299,8 @@ class UserSerializer(serializers.ModelSerializer):
                 'date_of_birth': profile.date_of_birth,
                 'profile_picture': profile.profile_picture if profile.profile_picture else None,
                 'aadhaar_number': profile.aadhaar_number,
+                'gender': profile.gender,
+                'pronoun': profile.pronoun,
                 'permanent_address': permanent_address,
                 'current_address': current_address,
                 'same_as_permanent': profile.same_as_permanent,
@@ -430,7 +438,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = UserProfile
         fields = [
             'phone_number', 'date_of_birth', 'profile_picture', 'aadhaar_number',
-            'aadhaar_verified', 'permanent_address', 'current_address', 
+            'aadhaar_verified', 'gender', 'pronoun', 'permanent_address', 'current_address', 
             'same_as_permanent', 'preferred_language', 'referral_code',
             'emergency_contact_name', 'emergency_contact_phone',
             'secondary_email', 'secondary_phone',

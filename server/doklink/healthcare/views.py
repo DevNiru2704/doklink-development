@@ -10,13 +10,15 @@ from math import radians, sin, cos, sqrt, atan2
 import hashlib
 import json
 
-from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, Insurance
+from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, Insurance, InsuranceProvider, HospitalInsurance
 from .serializers import (
     DoctorSerializer, HospitalSerializer, TreatmentSerializer,
     BookingSerializer, PaymentSerializer, DashboardSerializer,
     EmergencyBookingSerializer, EmergencyTriggerSerializer,
     NearbyHospitalSerializer, BookEmergencyBedSerializer,
-    UpdateBookingStatusSerializer, InsuranceSerializer
+    UpdateBookingStatusSerializer, InsuranceSerializer,
+    InsuranceProviderSerializer, HospitalInsuranceSerializer,
+    InsuranceVerificationSerializer
 )
 
 
@@ -32,6 +34,17 @@ class HospitalViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Hospital.objects.all()
     serializer_class = HospitalSerializer
     permission_classes = [IsAuthenticated]
+    
+    @action(detail=True, methods=['get'], url_path='accepted-insurances')
+    def accepted_insurances(self, request, pk=None):
+        """Get accepted insurances for a specific hospital"""
+        hospital = self.get_object()
+        hospital_insurances = HospitalInsurance.objects.filter(
+            hospital=hospital,
+            is_active=True
+        ).select_related('insurance_provider')
+        
+        return Response(HospitalInsuranceSerializer(hospital_insurances, many=True).data)
     
     @action(detail=False, methods=['get'])
     def nearby(self, request):
@@ -711,4 +724,91 @@ def get_emergency_bookings(request):
     ).select_related('hospital').order_by('-created_at')
     
     return Response(EmergencyBookingSerializer(bookings, many=True).data)
+
+
+# ============================================================================
+# Insurance Provider and Verification Endpoints (Section 4)
+# ============================================================================
+
+class InsuranceProviderViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for insurance providers - read only
+    List all available insurance providers
+    """
+    queryset = InsuranceProvider.objects.filter(is_active=True)
+    serializer_class = InsuranceProviderSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class HospitalInsuranceViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for hospital-insurance relationships - read only
+    """
+    queryset = HospitalInsurance.objects.filter(is_active=True).select_related('hospital', 'insurance_provider')
+    serializer_class = HospitalInsuranceSerializer
+    permission_classes = [IsAuthenticated]
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_hospital_accepted_insurances(request, hospital_id):
+    """
+    Get all accepted insurances for a specific hospital
+    GET /api/v1/healthcare/hospitals/{hospital_id}/accepted-insurances/
+    """
+    try:
+        hospital = Hospital.objects.get(id=hospital_id)
+    except Hospital.DoesNotExist:
+        return Response(
+            {'error': 'Hospital not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    hospital_insurances = HospitalInsurance.objects.filter(
+        hospital=hospital,
+        is_active=True
+    ).select_related('insurance_provider')
+    
+    return Response(HospitalInsuranceSerializer(hospital_insurances, many=True).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_insurance_for_hospital(request):
+    """
+    Verify if user's insurance is accepted at a hospital
+    POST /api/v1/healthcare/insurance/verify/
+    Body: {
+        "hospital_id": 1,
+        "insurance_provider_id": 2
+    }
+    """
+    serializer = InsuranceVerificationSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    hospital_id = serializer.validated_data['hospital_id']
+    insurance_provider_id = serializer.validated_data['insurance_provider_id']
+    
+    try:
+        hospital_insurance = HospitalInsurance.objects.get(
+            hospital_id=hospital_id,
+            insurance_provider_id=insurance_provider_id,
+            is_active=True
+        )
+        
+        return Response({
+            'verified': True,
+            'hospital_name': hospital_insurance.hospital.name,
+            'insurance_provider': hospital_insurance.insurance_provider.name,
+            'is_in_network': hospital_insurance.is_in_network,
+            'network_status': 'In-Network' if hospital_insurance.is_in_network else 'Out-of-Network',
+            'copay_amount': str(hospital_insurance.copay_amount),
+            'notes': hospital_insurance.notes
+        })
+    except HospitalInsurance.DoesNotExist:
+        return Response({
+            'verified': False,
+            'message': 'This insurance is not accepted at the selected hospital'
+        }, status=status.HTTP_200_OK)
 
