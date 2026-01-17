@@ -449,15 +449,24 @@ class ProfileSerializer(serializers.ModelSerializer):
         
         # Update current address if provided
         if current_address_data:
-            if instance.current_address:
-                # Update existing address
+            # Check if current_address is the same as permanent_address
+            if instance.same_as_permanent and instance.current_address == instance.permanent_address:
+                # Create a new separate address object for current address
+                address = Address.objects.create(**current_address_data)
+                instance.current_address = address
+                instance.same_as_permanent = False
+            elif instance.current_address:
+                # Update existing separate address
                 for attr, value in current_address_data.items():
                     setattr(instance.current_address, attr, value)
                 instance.current_address.save()
+                # Set same_as_permanent to False since addresses are now different
+                instance.same_as_permanent = False
             else:
                 # Create new address
                 address = Address.objects.create(**current_address_data)
                 instance.current_address = address
+                instance.same_as_permanent = False
         
         # Update other profile fields
         for attr, value in validated_data.items():

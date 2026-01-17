@@ -39,6 +39,12 @@ export default function MySpace() {
 
     const menuItems = [
         {
+            icon: 'eye-outline',
+            title: 'View Profile',
+            subtitle: 'View all your information',
+            route: '/pages/profile/ViewProfile'
+        },
+        {
             icon: 'person-outline',
             title: 'Profile Settings',
             subtitle: 'Edit your personal information',

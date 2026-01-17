@@ -4,8 +4,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q, Sum, Prefetch, F
 from django.utils import timezone
+from django.core.cache import cache
 from datetime import timedelta
 from math import radians, sin, cos, sqrt, atan2
+import hashlib
+import json
 
 from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, Insurance
 from .serializers import (
@@ -186,7 +189,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
 
 class InsuranceViewSet(viewsets.ModelViewSet):
-    """ViewSet for patient insurance management (Section 2.2)"""
+    """ViewSet for patient insurance management (Section 2.2) with Redis caching"""
     serializer_class = InsuranceSerializer
     permission_classes = [IsAuthenticated]
     
@@ -194,9 +197,33 @@ class InsuranceViewSet(viewsets.ModelViewSet):
         """Return insurance policies for current user"""
         return Insurance.objects.filter(user=self.request.user).order_by('-is_active', '-created_at')
     
+    def list(self, request, *args, **kwargs):
+        """List insurances with caching (5 minutes TTL)"""
+        cache_key = f"user_insurances:{request.user.id}"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data:
+            return Response(cached_data)
+        
+        response = super().list(request, *args, **kwargs)
+        cache.set(cache_key, response.data, timeout=300)  # 5 minutes
+        return response
+    
     def perform_create(self, serializer):
-        """Automatically set user when creating insurance"""
+        """Automatically set user when creating insurance and invalidate cache"""
         serializer.save(user=self.request.user)
+        # Invalidate user's insurance cache
+        cache.delete(f"user_insurances:{self.request.user.id}")
+    
+    def perform_update(self, serializer):
+        """Update insurance and invalidate cache"""
+        serializer.save()
+        cache.delete(f"user_insurances:{self.request.user.id}")
+    
+    def perform_destroy(self, instance):
+        """Delete insurance and invalidate cache"""
+        super().perform_destroy(instance)
+        cache.delete(f"user_insurances:{self.request.user.id}")
     
     @action(detail=False, methods=['get'])
     def active(self, request):
@@ -211,20 +238,26 @@ class InsuranceViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
-        """Deactivate an insurance policy"""
+        """Deactivate an insurance policy and invalidate cache"""
         insurance = self.get_object()
         insurance.is_active = False
         insurance.save()
+        
+        # Invalidate cache
+        cache.delete(f"user_insurances:{request.user.id}")
         
         serializer = self.get_serializer(insurance)
         return Response(serializer.data)
     
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
-        """Reactivate an insurance policy"""
+        """Reactivate an insurance policy and invalidate cache"""
         insurance = self.get_object()
         insurance.is_active = True
         insurance.save()
+        
+        # Invalidate cache
+        cache.delete(f"user_insurances:{request.user.id}")
         
         serializer = self.get_serializer(insurance)
         return Response(serializer.data)
@@ -316,6 +349,31 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     return distance
 
 
+def invalidate_hospital_cache(hospital):
+    """
+    Invalidate all nearby hospital caches that might include this hospital
+    This is called when bed availability changes
+    """
+    # Delete cache patterns for this hospital's area
+    # In production, you might want to use a more sophisticated pattern matching
+    # For now, we'll use a simple approach: delete by pattern
+    try:
+        # Get all cache keys matching the pattern
+        cache_pattern = "nearby_hospitals:*"
+        # Note: django-redis supports delete_pattern
+        from django_redis import get_redis_connection
+        redis_conn = get_redis_connection("default")
+        
+        # Find all keys matching the pattern
+        keys = redis_conn.keys(f"doklink:{cache_pattern}")
+        if keys:
+            redis_conn.delete(*keys)
+    except Exception as e:
+        # If cache invalidation fails, log it but don't break the request
+        print(f"Cache invalidation error: {e}")
+        pass
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def trigger_emergency(request):
@@ -370,8 +428,9 @@ def trigger_emergency(request):
 @permission_classes([IsAuthenticated])
 def get_nearby_hospitals(request):
     """
-    Get nearby hospitals with bed availability
+    Get nearby hospitals with bed availability (with Redis caching)
     GET /api/v1/healthcare/hospitals/nearby/
+    Cache TTL: 30 seconds (bed availability changes frequently)
     """
     serializer = NearbyHospitalSerializer(data=request.query_params)
     if not serializer.is_valid():
@@ -381,6 +440,14 @@ def get_nearby_hospitals(request):
     longitude = float(serializer.validated_data['longitude'])
     radius_km = serializer.validated_data.get('radius_km', 10.0)
     bed_type = serializer.validated_data.get('bed_type', 'all')
+    
+    # Create cache key based on parameters
+    cache_key = f"nearby_hospitals:{latitude}:{longitude}:{radius_km}:{bed_type}"
+    
+    # Try to get from cache
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        return Response(cached_data)
     
     # Filter hospitals with coordinates
     hospitals = Hospital.objects.filter(
@@ -417,6 +484,9 @@ def get_nearby_hospitals(request):
     # Sort by distance
     nearby_hospitals.sort(key=lambda x: x['distance'])
     
+    # Cache the results for 30 seconds (bed availability changes frequently)
+    cache.set(cache_key, nearby_hospitals, timeout=30)
+    
     return Response(nearby_hospitals)
 
 
@@ -426,6 +496,7 @@ def book_emergency_bed(request):
     """
     Book an emergency bed at a hospital
     POST /api/v1/healthcare/emergency/book-bed/
+    Invalidates hospital cache after booking
     """
     serializer = BookEmergencyBedSerializer(data=request.data)
     if not serializer.is_valid():
@@ -507,6 +578,10 @@ def book_emergency_bed(request):
     hospital.save()
     hospital.refresh_from_db()
     
+    # Invalidate all nearby hospital caches for this hospital's area
+    # This ensures fresh data for other users searching in this area
+    invalidate_hospital_cache(hospital)
+    
     return Response(
         EmergencyBookingSerializer(emergency_booking).data,
         status=status.HTTP_201_CREATED
@@ -573,6 +648,8 @@ def update_booking_status(request, booking_id):
         else:
             hospital.available_icu_beds = F('available_icu_beds') + 1
         hospital.save()
+        # Invalidate cache when bed status changes
+        invalidate_hospital_cache(hospital)
     elif new_status == 'cancelled':
         booking.cancellation_reason = notes
         # Release bed when cancelled
@@ -582,6 +659,8 @@ def update_booking_status(request, booking_id):
         else:
             hospital.available_icu_beds = F('available_icu_beds') + 1
         hospital.save()
+        # Invalidate cache when bed status changes
+        invalidate_hospital_cache(hospital)
     elif new_status == 'expired':
         # Release bed when reservation expires
         hospital = booking.hospital
@@ -590,6 +669,8 @@ def update_booking_status(request, booking_id):
         else:
             hospital.available_icu_beds = F('available_icu_beds') + 1
         hospital.save()
+        # Invalidate cache when bed status changes
+        invalidate_hospital_cache(hospital)
     
     if notes:
         booking.notes = notes

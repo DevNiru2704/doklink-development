@@ -198,6 +198,277 @@ DokLink prioritizes user privacy and security:
 - Visit [React Native Documentation](https://reactnative.dev/docs/getting-started)
 - Join the [Expo Discord Community](https://chat.expo.dev)
 
+---
+
+## 🔐 Permission System Architecture
+
+DokLink uses a scalable, carousel-based permission system that dynamically handles runtime permissions with a smooth user experience.
+
+### Overview
+
+The permission system is designed to:
+- **Only show permissions that aren't granted** - Checks both system permissions and stored state
+- **Use a carousel approach** - Users can swipe through required permissions
+- **Be easily extensible** - Add new permissions without modifying existing code
+- **Support both light and dark themes** - Consistent styling across all permissions
+
+### Architecture Components
+
+The permission system consists of three main layers:
+
+#### 1. **Main Container** - `AppPermission.tsx`
+Central orchestrator that:
+- Manages the carousel of permission components
+- Dynamically filters out granted permissions
+- Handles navigation to the next permission or Home screen
+- Prevents softlocking by allowing users to skip permissions
+
+#### 2. **Permission Components**
+Individual components for each permission type (stored in `components/permissions/`):
+- `LocationPermissionComponent.tsx` - GPS/Location access
+- `FilesPermissionComponent.tsx` - Media library and file system access
+
+Each component:
+- Displays permission-specific UI with icons and descriptions
+- Handles the actual permission request
+- Stores permission state in AsyncStorage
+- Provides "Allow" and "Continue" (skip) options
+
+#### 3. **Permission Store** - `permissionStore.ts`
+Manages permission state with Zustand:
+```typescript
+interface PermissionState {
+  permissions: { [key: string]: boolean };
+  setPermission: (key: string, value: boolean) => void;
+  checkPermission: (key: string) => boolean;
+  resetPermissions: () => void;
+}
+```
+
+### Current Permissions
+
+| Permission | Package Used | Purpose |
+|------------|--------------|---------|
+| **Location** | `expo-location` | GPS access for hospital search and emergency services |
+| **Media Library** | `expo-media-library` | Access to photos, videos, audio files |
+| **File System** | `expo-file-system` | Directory selection via Storage Access Framework |
+
+### Adding a New Permission
+
+Follow this standardized process to add any new permission:
+
+#### Step 1: Create Permission Component
+
+Create `components/permissions/CameraPermissionComponent.tsx`:
+
+```tsx
+import React from 'react';
+import { View, Text, TouchableOpacity, Image, useColorScheme } from 'react-native';
+import { styles } from '../../styles/PermissionComponent';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Camera from 'expo-camera';
+
+interface CameraPermissionProps {
+  onPermissionChange: () => void;
+}
+
+export default function CameraPermissionComponent({ onPermissionChange }: CameraPermissionProps) {
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === 'dark';
+
+  const handleAllow = async () => {
+    const { status } = await Camera.requestCameraPermissionsAsync();
+    if (status === 'granted') {
+      await AsyncStorage.setItem('permission_camera', 'granted');
+    }
+    onPermissionChange(); // Always proceed
+  };
+
+  const handleContinue = async () => {
+    await AsyncStorage.setItem('permission_camera', 'denied');
+    onPermissionChange(); // Proceed without permission
+  };
+
+  return (
+    <View style={styles.container}>
+      <Image
+        source={
+          isDarkMode
+            ? require('../../assets/images/camera_permission_logo_dark.svg')
+            : require('../../assets/images/camera_permission_logo_light.svg')
+        }
+        style={styles.icon}
+      />
+      <Text style={[styles.title, isDarkMode && { color: '#fff' }]}>
+        Camera Access
+      </Text>
+      <Text style={[styles.description, isDarkMode && { color: '#ccc' }]}>
+        DokLink needs camera access to scan prescriptions and capture medical documents.
+      </Text>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.allowButton} onPress={handleAllow}>
+          <Text style={styles.allowButtonText}>Allow</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+          <Text style={[styles.continueButtonText, isDarkMode && { color: '#fff' }]}>
+            Continue
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+```
+
+#### Step 2: Add Permission Icons
+
+Create SVG icons:
+- `assets/images/camera_permission_logo_dark.svg`
+- `assets/images/camera_permission_logo_light.svg`
+
+#### Step 3: Update AppPermission.tsx
+
+Add to `allPermissions` array in `app/pages/AppPermission.tsx`:
+
+```tsx
+import CameraPermissionComponent from '../../components/permissions/CameraPermissionComponent';
+import * as Camera from 'expo-camera';
+
+// In allPermissions array:
+{
+  id: 'camera',
+  component: CameraPermissionComponent,
+  checkPermission: async () => {
+    const { status } = await Camera.getCameraPermissionsAsync();
+    return status === 'granted';
+  },
+  requestPermission: async () => {
+    const { status } = await Camera.requestCameraPermissionsAsync();
+    return status === 'granted';
+  },
+}
+```
+
+#### Step 4: Install Required Package
+
+```bash
+npm install expo-camera
+```
+
+### Permission Flow
+
+```
+App Start
+    ↓
+Check Authentication
+    ↓
+If Authenticated → Check System Permissions
+    ↓
+Check AsyncStorage for Stored Permissions
+    ↓
+Filter Out Granted Permissions
+    ↓
+If Permissions Missing → Show Permission Carousel
+    ↓
+User Interacts (Allow/Continue)
+    ↓
+Store Result in AsyncStorage
+    ↓
+Move to Next Permission or Home Screen
+```
+
+### File Access System (Multi-Step)
+
+The file permission system uses a comprehensive two-step approach:
+
+**Step 1: Media Library Permissions**
+```tsx
+import * as MediaLibrary from 'expo-media-library';
+
+const { status } = await MediaLibrary.requestPermissionsAsync();
+// Grants access to: Photos, Videos, Audio, Music
+```
+
+**Step 2: Storage Access Framework**
+```tsx
+import * as FileSystem from 'expo-file-system';
+
+const result = await FileSystem.StorageAccessFramework
+  .requestDirectoryPermissionsAsync();
+  
+// User selects directory via system UI
+// Grants access to: Documents, Files, App-specific folders
+// Stores directory URI for persistent access
+```
+
+**Combined Flow:**
+```javascript
+// 1. Request media library
+const mediaResult = await MediaLibrary.requestPermissionsAsync();
+
+// 2. Request directory selection
+const directoryUri = await FileSystem.StorageAccessFramework
+  .requestDirectoryPermissionsAsync();
+
+// 3. Store both permissions
+await AsyncStorage.setItem("permission_files", "granted");
+await AsyncStorage.setItem("selected_directory_uri", directoryUri.directoryUri);
+```
+
+### Testing & Development
+
+**Reset Permissions for Testing:**
+```javascript
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const resetPermissions = async () => {
+  await AsyncStorage.removeItem('permission_location');
+  await AsyncStorage.removeItem('permission_files');
+  await AsyncStorage.removeItem('permission_camera');
+  console.log('All permissions reset');
+};
+```
+
+**Permission State Debugging:**
+```javascript
+// Check current permission state
+const locationPerm = await AsyncStorage.getItem('permission_location');
+const filesPerm = await AsyncStorage.getItem('permission_files');
+
+console.log('Location:', locationPerm); // 'granted', 'denied', or null
+console.log('Files:', filesPerm);
+```
+
+### Key Features
+
+- ✅ **Dynamic filtering** - Only shows ungranted permissions
+- ✅ **Persistent state** - Permissions stored in AsyncStorage
+- ✅ **No softlocking** - Users can always skip permissions with "Continue"
+- ✅ **Carousel navigation** - Swipe between permissions with pagination dots
+- ✅ **Theme support** - Light and dark mode icons/styling
+- ✅ **Graceful degradation** - App works even if permissions are denied
+
+### Best Practices
+
+1. **Always create both dark and light mode icons** for consistency
+2. **Use the same styling** (`PermissionComponent.ts`) for all permission components
+3. **Test on both iOS and Android** - Permission behaviors differ
+4. **Handle denials gracefully** - Allow users to continue without required permissions
+5. **Store permission state** - Use AsyncStorage for persistent permission tracking
+6. **Provide clear descriptions** - Explain why each permission is needed
+
+### Troubleshooting
+
+- **Permission not appearing**: Check if system permission is already granted
+- **Softlock issue**: Ensure `onPermissionChange()` is called in both Allow and Continue handlers
+- **State not persisting**: Verify AsyncStorage keys are consistent
+- **File access issues**: Remember to use both MediaLibrary AND StorageAccessFramework
+- **Icons not showing**: Check SVG file paths and naming conventions (dark/light variants)
+
+---
+
 ## 🤝 Contributing
 
 1. Fork the repository
