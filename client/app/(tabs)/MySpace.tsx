@@ -66,19 +66,19 @@ export default function MySpace() {
             icon: 'notifications-outline',
             title: 'Notifications',
             subtitle: 'Manage notification preferences',
-            route: null
+            route: '/pages/profile/Notifications'
         },
         {
             icon: 'shield-checkmark-outline',
             title: 'Privacy & Security',
             subtitle: 'Control your privacy settings',
-            route: null
+            route: '/pages/profile/PrivacySecurity'
         },
         {
             icon: 'help-circle-outline',
             title: 'Help & Support',
             subtitle: 'Get help and contact support',
-            route: null
+            route: '/pages/profile/HelpSupport'
         },
     ];
 
