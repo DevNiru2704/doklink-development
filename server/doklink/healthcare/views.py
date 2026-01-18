@@ -10,7 +10,10 @@ from math import radians, sin, cos, sqrt, atan2
 import hashlib
 import json
 
-from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, Insurance, InsuranceProvider, HospitalInsurance
+from .models import (
+    Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, 
+    Insurance, InsuranceProvider, HospitalInsurance, DailyExpense, OutOfPocketPayment
+)
 from .serializers import (
     DoctorSerializer, HospitalSerializer, TreatmentSerializer,
     BookingSerializer, PaymentSerializer, DashboardSerializer,
@@ -18,7 +21,9 @@ from .serializers import (
     NearbyHospitalSerializer, BookEmergencyBedSerializer,
     UpdateBookingStatusSerializer, InsuranceSerializer,
     InsuranceProviderSerializer, HospitalInsuranceSerializer,
-    InsuranceVerificationSerializer
+    InsuranceVerificationSerializer, DailyExpenseSerializer,
+    OutOfPocketPaymentSerializer, CreateRazorpayOrderSerializer,
+    VerifyRazorpayPaymentSerializer
 )
 
 
@@ -289,20 +294,6 @@ class DashboardViewSet(viewsets.ViewSet):
         user = request.user
         today = timezone.now().date()
         
-        # Ongoing treatments (optimized with select_related)
-        ongoing_treatments = Treatment.objects.filter(
-            user=user,
-            status='ongoing'
-        ).select_related('doctor', 'hospital')[:5]  # Limit to 5 most recent
-        
-        # Upcoming bookings (next 30 days, optimized)
-        upcoming_bookings = Booking.objects.filter(
-            user=user,
-            booking_date__gte=today,
-            booking_date__lte=today + timedelta(days=30),
-            status__in=['confirmed', 'pending']
-        ).select_related('hospital', 'doctor').order_by('booking_date', 'booking_time')[:10]
-        
         # Upcoming payments (next 30 days, optimized)
         upcoming_payments = Payment.objects.filter(
             user=user,
@@ -312,12 +303,6 @@ class DashboardViewSet(viewsets.ViewSet):
         ).select_related('hospital', 'doctor').order_by('due_date')[:10]
         
         # Summary statistics (single aggregation query)
-        total_treatments = Treatment.objects.filter(user=user, status='ongoing').count()
-        total_bookings = Booking.objects.filter(
-            user=user,
-            booking_date__gte=today,
-            status__in=['confirmed', 'pending']
-        ).count()
         total_pending_payments = Payment.objects.filter(
             user=user,
             status='pending'
@@ -325,11 +310,7 @@ class DashboardViewSet(viewsets.ViewSet):
         
         # Serialize data
         data = {
-            'ongoing_treatments': TreatmentSerializer(ongoing_treatments, many=True).data,
-            'upcoming_bookings': BookingSerializer(upcoming_bookings, many=True).data,
             'upcoming_payments': PaymentSerializer(upcoming_payments, many=True).data,
-            'total_treatments': total_treatments,
-            'total_bookings': total_bookings,
             'total_pending_payments': float(total_pending_payments),
         }
         
@@ -869,4 +850,322 @@ def verify_insurance_for_hospital(request):
             'verified': False,
             'message': 'This insurance is not accepted at the selected hospital'
         }, status=status.HTTP_200_OK)
+
+
+class DailyExpenseViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing daily expenses during hospital stay (Phase 2 - Section 8.2)"""
+    serializer_class = DailyExpenseSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Return expenses for user's admissions only"""
+        return DailyExpense.objects.filter(
+            admission__user=self.request.user
+        ).select_related('admission', 'admission__hospital').order_by('-date', '-created_at')
+    
+    def perform_create(self, serializer):
+        """Create expense and verify user owns the admission"""
+        admission_id = serializer.validated_data.get('admission').id
+        admission = EmergencyBooking.objects.filter(id=admission_id, user=self.request.user).first()
+        
+        if not admission:
+            raise serializers.ValidationError("Admission not found or you don't have permission")
+        
+        serializer.save()
+    
+    @action(detail=False, methods=['get'])
+    def by_admission(self, request):
+        """
+        Get all expenses for a specific admission
+        GET /api/v1/healthcare/expenses/by_admission/?admission_id=1
+        """
+        admission_id = request.query_params.get('admission_id')
+        
+        if not admission_id:
+            return Response(
+                {'error': 'admission_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verify user owns the admission
+        admission = EmergencyBooking.objects.filter(
+            id=admission_id,
+            user=request.user
+        ).first()
+        
+        if not admission:
+            return Response(
+                {'error': 'Admission not found or you don\'t have permission'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        expenses = DailyExpense.objects.filter(
+            admission_id=admission_id
+        ).order_by('date', 'created_at')
+        
+        serializer = self.get_serializer(expenses, many=True)
+        
+        # Calculate summary
+        total_amount = sum(exp.amount for exp in expenses)
+        total_insurance = sum(exp.insurance_covered for exp in expenses)
+        total_patient = sum(exp.patient_share for exp in expenses)
+        
+        return Response({
+            'admission_id': admission_id,
+            'hospital_name': admission.hospital.name,
+            'admission_date': admission.admission_time,
+            'discharge_date': admission.discharge_date,
+            'expenses': serializer.data,
+            'summary': {
+                'total_amount': str(total_amount),
+                'total_insurance_covered': str(total_insurance),
+                'total_patient_share': str(total_patient),
+                'expense_count': len(expenses)
+            }
+        })
+    
+    @action(detail=False, methods=['get'])
+    def daily_summary(self, request):
+        """
+        Get expense summary grouped by date for an admission
+        GET /api/v1/healthcare/expenses/daily_summary/?admission_id=1
+        """
+        admission_id = request.query_params.get('admission_id')
+        
+        if not admission_id:
+            return Response(
+                {'error': 'admission_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verify user owns the admission
+        admission = EmergencyBooking.objects.filter(
+            id=admission_id,
+            user=request.user
+        ).first()
+        
+        if not admission:
+            return Response(
+                {'error': 'Admission not found or you don\'t have permission'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Group expenses by date
+        from django.db.models import Sum
+        daily_expenses = DailyExpense.objects.filter(
+            admission_id=admission_id
+        ).values('date').annotate(
+            total_amount=Sum('amount'),
+            total_insurance=Sum('insurance_covered'),
+            total_patient=Sum('patient_share')
+        ).order_by('date')
+        
+        return Response({
+            'admission_id': admission_id,
+            'hospital_name': admission.hospital.name,
+            'daily_summary': list(daily_expenses)
+        })
+
+
+class OutOfPocketPaymentViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing out-of-pocket payments (Phase 2 - Section 10.1)"""
+    serializer_class = OutOfPocketPaymentSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post', 'patch', 'head', 'options']  # No PUT or DELETE
+    
+    def get_queryset(self):
+        """Return payments for user's admissions only"""
+        return OutOfPocketPayment.objects.filter(
+            admission__user=self.request.user
+        ).select_related('admission', 'admission__hospital', 'admission__user')
+    
+    @action(detail=False, methods=['post'])
+    def create_razorpay_order(self, request):
+        """
+        Create Razorpay order for out-of-pocket payment
+        POST /api/v1/healthcare/out-of-pocket-payments/create_razorpay_order/
+        Body: {"admission_id": 1}
+        """
+        import razorpay
+        from django.conf import settings
+        
+        serializer = CreateRazorpayOrderSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        admission_id = serializer.validated_data['admission_id']
+        
+        # Get admission and verify ownership
+        admission = EmergencyBooking.objects.filter(
+            id=admission_id,
+            user=request.user
+        ).first()
+        
+        if not admission:
+            return Response(
+                {'error': 'Admission not found or you don\'t have permission'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get or create OutOfPocketPayment
+        payment, created = OutOfPocketPayment.objects.get_or_create(
+            admission=admission,
+            defaults={
+                'total_amount': admission.total_bill_amount,
+                'insurance_covered': admission.insurance_approved_amount,
+                'out_of_pocket': admission.out_of_pocket_amount
+            }
+        )
+        
+        if payment.payment_status == 'completed':
+            return Response(
+                {'error': 'Payment already completed'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create Razorpay order
+        try:
+            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+            
+            order_amount = int(float(payment.out_of_pocket) * 100)  # Convert to paise
+            order_currency = 'INR'
+            order_receipt = f'admission_{admission_id}'
+            
+            razorpay_order = client.order.create({
+                'amount': order_amount,
+                'currency': order_currency,
+                'receipt': order_receipt,
+                'payment_capture': 1  # Auto capture
+            })
+            
+            # Update payment with Razorpay order ID
+            payment.razorpay_order_id = razorpay_order['id']
+            payment.payment_status = 'processing'
+            payment.save()
+            
+            return Response({
+                'order_id': razorpay_order['id'],
+                'amount': order_amount,
+                'currency': order_currency,
+                'key_id': settings.RAZORPAY_KEY_ID,
+                'payment_id': payment.id,
+                'admission_id': admission_id,
+                'hospital_name': admission.hospital.name
+            })
+        
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to create Razorpay order: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'])
+    def verify_payment(self, request):
+        """
+        Verify Razorpay payment signature
+        POST /api/v1/healthcare/out-of-pocket-payments/verify_payment/
+        Body: {
+            "razorpay_order_id": "order_xxx",
+            "razorpay_payment_id": "pay_xxx",
+            "razorpay_signature": "signature_xxx",
+            "payment_method": "card"  # optional
+        }
+        """
+        import razorpay
+        from django.conf import settings
+        import hmac
+        import hashlib
+        
+        serializer = VerifyRazorpayPaymentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        razorpay_order_id = serializer.validated_data['razorpay_order_id']
+        razorpay_payment_id = serializer.validated_data['razorpay_payment_id']
+        razorpay_signature = serializer.validated_data['razorpay_signature']
+        payment_method = serializer.validated_data.get('payment_method', '')
+        
+        # Get payment record
+        payment = OutOfPocketPayment.objects.filter(
+            razorpay_order_id=razorpay_order_id,
+            admission__user=request.user
+        ).first()
+        
+        if not payment:
+            return Response(
+                {'error': 'Payment record not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verify signature
+        try:
+            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+            
+            # Generate expected signature
+            message = f"{razorpay_order_id}|{razorpay_payment_id}"
+            generated_signature = hmac.new(
+                settings.RAZORPAY_KEY_SECRET.encode(),
+                message.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            
+            if generated_signature == razorpay_signature:
+                # Payment verified successfully
+                payment.razorpay_payment_id = razorpay_payment_id
+                payment.razorpay_signature = razorpay_signature
+                payment.payment_status = 'completed'
+                payment.payment_method = payment_method
+                payment.payment_date = timezone.now()
+                payment.save()
+                
+                return Response({
+                    'success': True,
+                    'message': 'Payment verified successfully',
+                    'payment_id': payment.id,
+                    'amount_paid': str(payment.out_of_pocket)
+                })
+            else:
+                # Signature mismatch
+                payment.payment_status = 'failed'
+                payment.notes = 'Signature verification failed'
+                payment.save()
+                
+                return Response(
+                    {'error': 'Payment verification failed'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        except Exception as e:
+            return Response(
+                {'error': f'Payment verification error: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'])
+    def by_admission(self, request):
+        """
+        Get payment details for a specific admission
+        GET /api/v1/healthcare/out-of-pocket-payments/by_admission/?admission_id=1
+        """
+        admission_id = request.query_params.get('admission_id')
+        
+        if not admission_id:
+            return Response(
+                {'error': 'admission_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        payment = OutOfPocketPayment.objects.filter(
+            admission_id=admission_id,
+            admission__user=request.user
+        ).first()
+        
+        if not payment:
+            return Response(
+                {'error': 'Payment record not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = self.get_serializer(payment)
+        return Response(serializer.data)
 

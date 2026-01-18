@@ -14,55 +14,29 @@ import { useRouter } from 'expo-router';
 import { authService } from '../../services/authService';
 import apiClient from '../../config/api';
 
-interface Doctor {
-    id: number;
-    name: string;
-    specialization: string;
+interface DailyExpenseSummary {
+    date: string;
+    total_amount: number;
+    total_insurance_covered: number;
+    total_patient_share: number;
+    expense_count: number;
 }
 
-interface Hospital {
+interface EmergencyBooking {
     id: number;
-    name: string;
-    city: string;
-}
-
-interface Treatment {
-    id: number;
-    treatment_name: string;
-    doctor: Doctor;
-    hospital: Hospital;
-    started_date: string;
-}
-
-interface Booking {
-    id: number;
-    booking_type: string;
-    booking_type_display: string;
-    hospital: Hospital;
-    doctor?: Doctor;
-    booking_date: string;
-    booking_time: string;
+    hospital_name: string;
+    bed_type: string;
+    admission_time: string;
+    discharge_date: string | null;
     status: string;
-    status_display: string;
-    location_details: string;
-}
-
-interface Payment {
-    id: number;
-    title: string;
-    provider_name: string;
-    amount: string;
-    due_date: string;
-    status: string;
+    total_bill_amount: string | null;
+    insurance_approved_amount: string | null;
+    out_of_pocket_amount: string | null;
 }
 
 interface DashboardData {
-    ongoing_treatments: Treatment[];
-    upcoming_bookings: Booking[];
-    upcoming_payments: Payment[];
-    total_treatments: number;
-    total_bookings: number;
-    total_pending_payments: number;
+    current_admission: EmergencyBooking | null;
+    daily_expenses: DailyExpenseSummary[];
 }
 
 export default function Dashboard() {
@@ -76,14 +50,39 @@ export default function Dashboard() {
 
     const fetchDashboardData = async () => {
         try {
-            const response = await apiClient.get<DashboardData>('/healthcare/dashboard/');
-            setDashboardData(response.data);
-
             // Get user name
             const user = await authService.getStoredUser();
             if (user) {
                 setUserName(user.first_name || user.username);
             }
+
+            // Get current admission (most recent discharged booking)
+            const bookingsResponse = await apiClient.get('/healthcare/emergency/bookings/');
+            const bookingsData: any = bookingsResponse.data;
+            const bookings = bookingsData.results || bookingsData;
+
+            // Find the most recent discharged booking
+            const currentAdmission = bookings
+                .filter((b: EmergencyBooking) => b.status === 'discharged')
+                .sort((a: EmergencyBooking, b: EmergencyBooking) =>
+                    new Date(b.admission_time).getTime() - new Date(a.admission_time).getTime()
+                )[0] || null;
+
+            let dailyExpenses: DailyExpenseSummary[] = [];
+
+            if (currentAdmission) {
+                // Get daily expense summary for this admission
+                const expensesResponse = await apiClient.get(
+                    `/healthcare/expenses/daily_summary/?admission_id=${currentAdmission.id}`
+                );
+                const expensesData: any = expensesResponse.data;
+                dailyExpenses = expensesData || [];
+            }
+
+            setDashboardData({
+                current_admission: currentAdmission,
+                daily_expenses: dailyExpenses,
+            });
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
         } finally {
@@ -103,28 +102,26 @@ export default function Dashboard() {
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
-        return date.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
+        return date.toLocaleDateString('en-IN', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
     };
 
-    const formatTime = (timeString: string) => {
-        const [hours, minutes] = timeString.split(':');
-        const hour = parseInt(hours);
-        const ampm = hour >= 12 ? 'PM' : 'AM';
-        const displayHour = hour % 12 || 12;
-        return `${displayHour}:${minutes} ${ampm}`;
+    const formatShortDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-IN', {
+            month: 'short',
+            day: 'numeric'
+        });
     };
 
-    const getStatusColor = (status: string) => {
-        switch (status.toLowerCase()) {
-            case 'confirmed':
-                return '#10b981';
-            case 'pending':
-                return '#f59e0b';
-            case 'cancelled':
-                return '#ef4444';
-            default:
-                return '#6b7280';
-        }
+    const getDayLabel = (dateString: string, admissionDate: string) => {
+        const date = new Date(dateString);
+        const admission = new Date(admissionDate);
+        const diffDays = Math.floor((date.getTime() - admission.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        return `Day ${diffDays}`;
     };
 
     if (loading) {
@@ -147,7 +144,7 @@ export default function Dashboard() {
                         Welcome back,
                     </Text>
                     <Text style={[styles.userName, { color: isDark ? '#ffffff' : '#111827' }]}>
-                        Mr. {userName}
+                        {userName}
                     </Text>
                 </View>
                 <View style={styles.headerIcons}>
@@ -162,143 +159,173 @@ export default function Dashboard() {
                 </View>
             </View>
 
-            {/* Upcoming Bookings */}
-            <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                    <Ionicons name="calendar" size={24} color="#3b82f6" />
-                    <Text style={[styles.sectionTitle, { color: isDark ? '#ffffff' : '#111827' }]}>
-                        Upcoming Bookings
-                    </Text>
-                </View>
-                {dashboardData?.upcoming_bookings.map((booking) => (
-                    <View
-                        key={booking.id}
-                        style={[styles.card, { backgroundColor: isDark ? '#1f2937' : '#ffffff' }]}
-                    >
-                        <View style={styles.cardHeader}>
-                            <Text style={[styles.cardTitle, { color: isDark ? '#e5e7eb' : '#1f2937' }]}>
-                                {booking.booking_type_display}
+            {dashboardData?.current_admission ? (
+                <>
+                    {/* Patient Journey Section */}
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Ionicons name="medical" size={24} color="#10b981" />
+                            <Text style={[styles.sectionTitle, { color: isDark ? '#ffffff' : '#111827' }]}>
+                                Patient Journey
                             </Text>
-                            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) + '20' }]}>
-                                <Text style={[styles.statusText, { color: getStatusColor(booking.status) }]}>
-                                    {booking.status_display}
-                                </Text>
-                            </View>
                         </View>
-                        <Text style={[styles.cardSubtitle, { color: isDark ? '#d1d5db' : '#374151' }]}>
-                            {booking.hospital.name}
-                        </Text>
-                        <View style={styles.cardDetails}>
-                            <View style={styles.detailRow}>
-                                <Ionicons name="calendar-outline" size={16} color={isDark ? '#9ca3af' : '#6b7280'} />
-                                <Text style={[styles.detailText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
-                                    {formatDate(booking.booking_date)}
-                                </Text>
-                            </View>
-                            <View style={styles.detailRow}>
-                                <Ionicons name="time-outline" size={16} color={isDark ? '#9ca3af' : '#6b7280'} />
-                                <Text style={[styles.detailText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
-                                    {formatTime(booking.booking_time)}
-                                </Text>
-                            </View>
-                        </View>
-                        {booking.doctor && (
-                            <View style={styles.detailRow}>
-                                <Ionicons name="person-outline" size={16} color={isDark ? '#9ca3af' : '#6b7280'} />
-                                <Text style={[styles.detailText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
-                                    Dr. {booking.doctor.name} - {booking.doctor.specialization}
-                                </Text>
-                            </View>
-                        )}
-                        {booking.location_details && (
-                            <View style={styles.detailRow}>
-                                <Ionicons name="location-outline" size={16} color={isDark ? '#9ca3af' : '#6b7280'} />
-                                <Text style={[styles.detailText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
-                                    {booking.location_details}
-                                </Text>
-                            </View>
-                        )}
-                    </View>
-                ))}
-            </View>
 
-            {/* Ongoing Treatments */}
-            <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                    <Ionicons name="pulse" size={24} color="#10b981" />
-                    <Text style={[styles.sectionTitle, { color: isDark ? '#ffffff' : '#111827' }]}>
-                        Ongoing Treatments
-                    </Text>
-                </View>
-                {dashboardData?.ongoing_treatments.map((treatment) => (
-                    <View
-                        key={treatment.id}
-                        style={[styles.card, { backgroundColor: isDark ? '#1f2937' : '#ffffff' }]}
-                    >
-                        <Text style={[styles.cardTitle, { color: isDark ? '#e5e7eb' : '#1f2937' }]}>
-                            {treatment.treatment_name}
-                        </Text>
-                        <View style={styles.detailRow}>
-                            <Ionicons name="person-outline" size={16} color={isDark ? '#9ca3af' : '#6b7280'} />
-                            <Text style={[styles.detailText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
-                                Dr. {treatment.doctor.name}
-                            </Text>
-                        </View>
-                        <View style={styles.detailRow}>
-                            <Ionicons name="business-outline" size={16} color={isDark ? '#9ca3af' : '#6b7280'} />
-                            <Text style={[styles.detailText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
-                                {treatment.hospital.name}
-                            </Text>
-                        </View>
-                        <View style={styles.detailRow}>
-                            <Text style={[styles.detailText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
-                                Started: {formatDate(treatment.started_date)}
-                            </Text>
-                        </View>
-                    </View>
-                ))}
-            </View>
-
-            {/* Upcoming Payments */}
-            <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                    <Ionicons name="wallet" size={24} color="#f59e0b" />
-                    <Text style={[styles.sectionTitle, { color: isDark ? '#ffffff' : '#111827' }]}>
-                        Upcoming Payments
-                    </Text>
-                </View>
-                {dashboardData?.upcoming_payments.map((payment) => (
-                    <View
-                        key={payment.id}
-                        style={[styles.card, { backgroundColor: isDark ? '#1f2937' : '#ffffff' }]}
-                    >
-                        <View style={styles.paymentHeader}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={[styles.cardTitle, { color: isDark ? '#e5e7eb' : '#1f2937' }]}>
-                                    {payment.title}
-                                </Text>
-                                <Text style={[styles.cardSubtitle, { color: isDark ? '#d1d5db' : '#374151' }]}>
-                                    {payment.provider_name}
-                                </Text>
+                        {/* Admission Summary Card */}
+                        <View style={[styles.summaryCard, { backgroundColor: isDark ? '#1f2937' : '#ffffff' }]}>
+                            <View style={styles.summaryHeader}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.hospitalName, { color: isDark ? '#ffffff' : '#111827' }]}>
+                                        {dashboardData.current_admission.hospital_name}
+                                    </Text>
+                                    <Text style={[styles.bedType, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                        {dashboardData.current_admission.bed_type === 'icu' ? 'ICU' : 'General Ward'}
+                                    </Text>
+                                </View>
+                                <View style={[styles.statusBadge, { backgroundColor: '#10b98120' }]}>
+                                    <Text style={[styles.statusText, { color: '#10b981' }]}>
+                                        Completed
+                                    </Text>
+                                </View>
                             </View>
-                            <Text style={[styles.amount, { color: '#3b82f6' }]}>
-                                ₹{parseFloat(payment.amount).toLocaleString('en-IN')}
-                            </Text>
+
+                            <View style={styles.dateRange}>
+                                <View style={styles.dateItem}>
+                                    <Ionicons name="enter-outline" size={16} color="#3b82f6" />
+                                    <Text style={[styles.dateLabel, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                        Admitted
+                                    </Text>
+                                    <Text style={[styles.dateValue, { color: isDark ? '#e5e7eb' : '#1f2937' }]}>
+                                        {formatDate(dashboardData.current_admission.admission_time)}
+                                    </Text>
+                                </View>
+                                <View style={styles.dateDivider} />
+                                <View style={styles.dateItem}>
+                                    <Ionicons name="exit-outline" size={16} color="#10b981" />
+                                    <Text style={[styles.dateLabel, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                        Discharged
+                                    </Text>
+                                    <Text style={[styles.dateValue, { color: isDark ? '#e5e7eb' : '#1f2937' }]}>
+                                        {dashboardData.current_admission.discharge_date
+                                            ? formatDate(dashboardData.current_admission.discharge_date)
+                                            : 'Ongoing'}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {/* Financial Summary */}
+                            {dashboardData.current_admission.total_bill_amount && (
+                                <View style={[styles.financialSummary, { borderTopColor: isDark ? '#374151' : '#e5e7eb' }]}>
+                                    <View style={styles.financialRow}>
+                                        <Text style={[styles.financialLabel, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                            Total Bill
+                                        </Text>
+                                        <Text style={[styles.financialValue, { color: isDark ? '#ffffff' : '#111827' }]}>
+                                            ₹{parseFloat(dashboardData.current_admission.total_bill_amount).toLocaleString('en-IN')}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.financialRow}>
+                                        <Text style={[styles.financialLabel, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                            Insurance Covered
+                                        </Text>
+                                        <Text style={[styles.financialValue, { color: '#10b981' }]}>
+                                            ₹{parseFloat(dashboardData.current_admission.insurance_approved_amount || '0').toLocaleString('en-IN')}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.financialRow}>
+                                        <Text style={[styles.financialLabel, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                            Out-of-Pocket
+                                        </Text>
+                                        <Text style={[styles.financialValue, { color: '#f59e0b' }]}>
+                                            ₹{parseFloat(dashboardData.current_admission.out_of_pocket_amount || '0').toLocaleString('en-IN')}
+                                        </Text>
+                                    </View>
+                                </View>
+                            )}
                         </View>
-                        <View style={styles.detailRow}>
-                            <Text style={[styles.detailText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
-                                Due: {formatDate(payment.due_date)}
-                            </Text>
+
+                        {/* Daily Expense Timeline */}
+                        <Text style={[styles.timelineTitle, { color: isDark ? '#ffffff' : '#111827' }]}>
+                            Daily Expense Breakdown
+                        </Text>
+
+                        <View style={styles.timeline}>
+                            {dashboardData.daily_expenses && dashboardData.daily_expenses.length > 0 ? dashboardData.daily_expenses.map((expense, index) => (
+                                <View key={expense.date} style={styles.timelineItem}>
+                                    {/* Timeline connector */}
+                                    <View style={styles.timelineConnector}>
+                                        <View style={[styles.timelineDot, { backgroundColor: '#3b82f6' }]} />
+                                        {index < dashboardData.daily_expenses.length - 1 && (
+                                            <View style={[styles.timelineLine, { backgroundColor: isDark ? '#374151' : '#d1d5db' }]} />
+                                        )}
+                                    </View>
+
+                                    {/* Expense card */}
+                                    <View style={[styles.expenseCard, { backgroundColor: isDark ? '#1f2937' : '#ffffff' }]}>
+                                        <View style={styles.expenseHeader}>
+                                            <View>
+                                                <Text style={[styles.dayLabel, { color: '#3b82f6' }]}>
+                                                    {getDayLabel(expense.date, dashboardData.current_admission!.admission_time)}
+                                                </Text>
+                                                <Text style={[styles.expenseDate, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                                    {formatShortDate(expense.date)}
+                                                </Text>
+                                            </View>
+                                            <View style={styles.expenseAmount}>
+                                                <Text style={[styles.amountValue, { color: isDark ? '#ffffff' : '#111827' }]}>
+                                                    ₹{expense.total_amount.toLocaleString('en-IN')}
+                                                </Text>
+                                                <Text style={[styles.amountLabel, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                                    {expense.expense_count} {expense.expense_count === 1 ? 'expense' : 'expenses'}
+                                                </Text>
+                                            </View>
+                                        </View>
+
+                                        <View style={styles.expenseBreakdown}>
+                                            <View style={styles.breakdownItem}>
+                                                <View style={[styles.breakdownDot, { backgroundColor: '#10b981' }]} />
+                                                <Text style={[styles.breakdownText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                                    Insurance: ₹{expense.total_insurance_covered.toLocaleString('en-IN')}
+                                                </Text>
+                                            </View>
+                                            <View style={styles.breakdownItem}>
+                                                <View style={[styles.breakdownDot, { backgroundColor: '#f59e0b' }]} />
+                                                <Text style={[styles.breakdownText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                                    Your share: ₹{expense.total_patient_share.toLocaleString('en-IN')}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                </View>
+                            )) : (
+                                <View style={styles.noExpensesCard}>
+                                    <Text style={[styles.noExpensesText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                        No expense details available yet
+                                    </Text>
+                                </View>
+                            )}
                         </View>
+
+                        {/* View Full History Button */}
+                        <TouchableOpacity
+                            style={styles.viewHistoryButton}
+                            onPress={() => router.push('/pages/dashboard/PaymentHistory')}
+                        >
+                            <Text style={styles.viewHistoryText}>View Booking History</Text>
+                            <Ionicons name="arrow-forward" size={20} color="#ffffff" />
+                        </TouchableOpacity>
                     </View>
-                ))}
-                <TouchableOpacity
-                    style={styles.viewHistoryButton}
-                    onPress={() => router.push('/pages/dashboard/PaymentHistory')}
-                >
-                    <Text style={styles.viewHistoryText}>View Payment History</Text>
-                </TouchableOpacity>
-            </View>
+                </>
+            ) : (
+                <View style={styles.emptyState}>
+                    <Ionicons name="calendar-outline" size={64} color={isDark ? '#4b5563' : '#d1d5db'} />
+                    <Text style={[styles.emptyTitle, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                        No Recent Admissions
+                    </Text>
+                    <Text style={[styles.emptyText, { color: isDark ? '#6b7280' : '#9ca3af' }]}>
+                        Your patient journey will appear here once you have an admission
+                    </Text>
+                </View>
+            )}
         </ScrollView>
     );
 }
@@ -356,74 +383,196 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
     },
-    card: {
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 12,
+    summaryCard: {
+        borderRadius: 16,
+        padding: 20,
+        marginBottom: 20,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowRadius: 8,
+        elevation: 4,
     },
-    cardHeader: {
+    summaryHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: 8,
+        marginBottom: 16,
     },
-    cardTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        flex: 1,
+    hospitalName: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 4,
     },
-    cardSubtitle: {
+    bedType: {
         fontSize: 14,
-        marginBottom: 12,
+        textTransform: 'capitalize',
     },
     statusBadge: {
         paddingHorizontal: 12,
-        paddingVertical: 4,
+        paddingVertical: 6,
         borderRadius: 12,
     },
     statusText: {
         fontSize: 12,
         fontWeight: '600',
     },
-    cardDetails: {
+    dateRange: {
         flexDirection: 'row',
         gap: 16,
-        marginBottom: 8,
+        marginBottom: 16,
     },
-    detailRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
+    dateItem: {
+        flex: 1,
+        gap: 4,
+    },
+    dateDivider: {
+        width: 1,
+        backgroundColor: '#e5e7eb',
+    },
+    dateLabel: {
+        fontSize: 12,
         marginTop: 4,
     },
-    detailText: {
+    dateValue: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    financialSummary: {
+        borderTopWidth: 1,
+        paddingTop: 16,
+        gap: 8,
+    },
+    financialRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    financialLabel: {
         fontSize: 14,
     },
-    paymentHeader: {
+    financialValue: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    timelineTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginBottom: 16,
+    },
+    timeline: {
+        marginBottom: 16,
+    },
+    timelineItem: {
+        flexDirection: 'row',
+        marginBottom: 16,
+    },
+    timelineConnector: {
+        width: 32,
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    timelineDot: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        marginTop: 8,
+    },
+    timelineLine: {
+        width: 2,
+        flex: 1,
+        marginTop: 4,
+    },
+    expenseCard: {
+        flex: 1,
+        borderRadius: 12,
+        padding: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    expenseHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: 8,
+        marginBottom: 12,
     },
-    amount: {
+    dayLabel: {
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    expenseDate: {
+        fontSize: 12,
+        marginTop: 2,
+    },
+    expenseAmount: {
+        alignItems: 'flex-end',
+    },
+    amountValue: {
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    amountLabel: {
+        fontSize: 11,
+        marginTop: 2,
+    },
+    expenseBreakdown: {
+        gap: 6,
+    },
+    breakdownItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    breakdownDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    breakdownText: {
+        fontSize: 13,
     },
     viewHistoryButton: {
         backgroundColor: '#3b82f6',
         borderRadius: 12,
         padding: 16,
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
         marginTop: 8,
     },
     viewHistoryText: {
         color: '#ffffff',
         fontSize: 16,
         fontWeight: '600',
+    },
+    emptyState: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 40,
+        marginTop: 60,
+    },
+    emptyTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        marginTop: 16,
+        marginBottom: 8,
+    },
+    emptyText: {
+        fontSize: 14,
+        textAlign: 'center',
+        lineHeight: 20,
+    },
+    noExpensesCard: {
+        padding: 20,
+        alignItems: 'center',
+    },
+    noExpensesText: {
+        fontSize: 14,
+        textAlign: 'center',
     },
 });

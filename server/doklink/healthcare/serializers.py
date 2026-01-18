@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, Insurance, InsuranceProvider, HospitalInsurance, InsuranceDependent
+from .models import (
+    Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, 
+    Insurance, InsuranceProvider, HospitalInsurance, InsuranceDependent,
+    DailyExpense, OutOfPocketPayment
+)
 from django.utils import timezone
 from datetime import timedelta
 
@@ -111,10 +115,12 @@ class EmergencyBookingSerializer(serializers.ModelSerializer):
             'id', 'hospital', 'hospital_id', 'emergency_type', 'emergency_type_display',
             'bed_type', 'bed_type_display', 'patient_condition', 'contact_person',
             'contact_phone', 'status', 'status_display', 'reservation_expires_at',
-            'arrival_time', 'admission_time', 'booking_latitude', 'booking_longitude',
-            'estimated_arrival_minutes', 'notes', 'cancellation_reason', 'created_at'
+            'arrival_time', 'admission_time', 'discharge_date', 'booking_latitude', 'booking_longitude',
+            'estimated_arrival_minutes', 'total_bill_amount', 'insurance_approved_amount',
+            'out_of_pocket_amount', 'notes', 'cancellation_reason', 'created_at'
         ]
-        read_only_fields = ['reservation_expires_at', 'created_at']
+        read_only_fields = ['reservation_expires_at', 'created_at', 'total_bill_amount', 
+                           'insurance_approved_amount', 'out_of_pocket_amount']
     
     def create(self, validated_data):
         # Set reservation expiry time to 30 minutes from now
@@ -312,3 +318,98 @@ class InsuranceVerificationSerializer(serializers.Serializer):
         if not InsuranceProvider.objects.filter(id=value).exists():
             raise serializers.ValidationError("Insurance provider not found")
         return value
+
+
+class DailyExpenseSerializer(serializers.ModelSerializer):
+    """Serializer for DailyExpense model (Phase 2 - Section 8.2)"""
+    
+    expense_type_display = serializers.CharField(source='get_expense_type_display', read_only=True)
+    admission_details = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = DailyExpense
+        fields = [
+            'id', 'admission', 'admission_details', 'date', 'expense_type', 
+            'expense_type_display', 'description', 'amount', 'insurance_covered',
+            'patient_share', 'verified', 'verification_notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+    
+    def get_admission_details(self, obj):
+        """Return basic admission information"""
+        return {
+            'id': obj.admission.id,
+            'hospital_name': obj.admission.hospital.name,
+            'status': obj.admission.status,
+            'admission_date': obj.admission.admission_time
+        }
+    
+    def validate(self, data):
+        """Ensure patient_share + insurance_covered = amount"""
+        if 'amount' in data:
+            insurance = data.get('insurance_covered', 0)
+            patient = data.get('patient_share', 0)
+            
+            # Auto-calculate patient_share if not provided
+            if insurance and not patient:
+                data['patient_share'] = data['amount'] - insurance
+            # Auto-calculate insurance_covered if not provided
+            elif patient and not insurance:
+                data['insurance_covered'] = data['amount'] - patient
+            # Validate that they add up to amount
+            elif insurance + patient != data['amount']:
+                raise serializers.ValidationError(
+                    "Insurance covered + Patient share must equal the total amount"
+                )
+        
+        return data
+
+
+class OutOfPocketPaymentSerializer(serializers.ModelSerializer):
+    """Serializer for OutOfPocketPayment model (Phase 2 - Section 10.1)"""
+    
+    payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
+    admission_details = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = OutOfPocketPayment
+        fields = [
+            'id', 'admission', 'admission_details', 'total_amount', 'insurance_covered',
+            'out_of_pocket', 'payment_status', 'payment_status_display', 'razorpay_order_id',
+            'razorpay_payment_id', 'razorpay_signature', 'payment_method', 'payment_date',
+            'transaction_receipt', 'notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['razorpay_order_id', 'created_at', 'updated_at']
+    
+    def get_admission_details(self, obj):
+        """Return basic admission information"""
+        return {
+            'id': obj.admission.id,
+            'hospital_name': obj.admission.hospital.name,
+            'patient_name': obj.admission.user.get_full_name() or obj.admission.user.username,
+            'admission_date': obj.admission.admission_time,
+            'discharge_date': obj.admission.discharge_date
+        }
+
+
+class CreateRazorpayOrderSerializer(serializers.Serializer):
+    """Serializer for creating Razorpay order"""
+    admission_id = serializers.IntegerField(required=True)
+    
+    def validate_admission_id(self, value):
+        """Ensure admission exists and has out-of-pocket payment"""
+        try:
+            admission = EmergencyBooking.objects.get(id=value)
+            if admission.status != 'discharged':
+                raise serializers.ValidationError("Patient must be discharged to make payment")
+        except EmergencyBooking.DoesNotExist:
+            raise serializers.ValidationError("Admission not found")
+        return value
+
+
+class VerifyRazorpayPaymentSerializer(serializers.Serializer):
+    """Serializer for verifying Razorpay payment"""
+    razorpay_order_id = serializers.CharField(required=True)
+    razorpay_payment_id = serializers.CharField(required=True)
+    razorpay_signature = serializers.CharField(required=True)
+    payment_method = serializers.CharField(required=False, allow_blank=True)

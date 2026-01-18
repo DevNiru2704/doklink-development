@@ -210,6 +210,12 @@ class EmergencyBooking(models.Model):
     reservation_expires_at = models.DateTimeField(help_text="Reservation expiry time (30 minutes from booking)")
     arrival_time = models.DateTimeField(null=True, blank=True, help_text="Actual arrival time at hospital")
     admission_time = models.DateTimeField(null=True, blank=True, help_text="Time patient was admitted")
+    discharge_date = models.DateTimeField(null=True, blank=True, help_text="Time patient was discharged")
+    
+    # Financial details (added for Phase 2)
+    total_bill_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Total hospital bill amount")
+    insurance_approved_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Amount approved by insurance")
+    out_of_pocket_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Amount to be paid by patient")
     
     # Location tracking
     booking_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, help_text="User's location when booking")
@@ -411,3 +417,92 @@ class HospitalInsurance(models.Model):
     def __str__(self):
         network_status = "In-Network" if self.is_in_network else "Out-of-Network"
         return f"{self.hospital.name} - {self.insurance_provider.name} ({network_status})"
+
+
+class DailyExpense(models.Model):
+    """Daily expense tracking for patient's hospital stay (Phase 2 - Section 8.2)"""
+    
+    EXPENSE_TYPE_CHOICES = [
+        ('room', 'Room Charges'),
+        ('procedure', 'Medical Procedure'),
+        ('medicine', 'Medicines'),
+        ('test', 'Lab Tests/Diagnostics'),
+        ('doctor_fee', 'Doctor Consultation Fee'),
+        ('nursing', 'Nursing Care'),
+        ('equipment', 'Medical Equipment'),
+        ('therapy', 'Therapy/Rehabilitation'),
+        ('miscellaneous', 'Miscellaneous'),
+    ]
+    
+    admission = models.ForeignKey(EmergencyBooking, on_delete=models.CASCADE, related_name='daily_expenses')
+    date = models.DateField(help_text="Date of the expense")
+    expense_type = models.CharField(max_length=30, choices=EXPENSE_TYPE_CHOICES)
+    description = models.TextField(help_text="Description of the expense")
+    amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Total amount for this expense")
+    insurance_covered = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Amount covered by insurance")
+    patient_share = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Patient's out-of-pocket share")
+    
+    # Verification status
+    verified = models.BooleanField(default=False, help_text="Whether expense has been verified")
+    verification_notes = models.TextField(blank=True, help_text="Notes from expense verification")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Daily Expense"
+        verbose_name_plural = "Daily Expenses"
+        ordering = ['date', 'created_at']
+        indexes = [
+            models.Index(fields=['admission', 'date']),
+            models.Index(fields=['date']),
+            models.Index(fields=['expense_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.date} - {self.get_expense_type_display()} - ₹{self.amount}"
+
+
+class OutOfPocketPayment(models.Model):
+    """Out-of-pocket payment tracking for discharged patients (Phase 2 - Section 10.1)"""
+    
+    PAYMENT_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('refunded', 'Refunded'),
+    ]
+    
+    admission = models.OneToOneField(EmergencyBooking, on_delete=models.CASCADE, related_name='out_of_pocket_payment')
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Total hospital bill")
+    insurance_covered = models.DecimalField(max_digits=10, decimal_places=2, help_text="Amount covered by insurance")
+    out_of_pocket = models.DecimalField(max_digits=10, decimal_places=2, help_text="Amount to be paid by patient")
+    
+    # Payment gateway details (Razorpay)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
+    razorpay_order_id = models.CharField(max_length=100, blank=True, null=True, help_text="Razorpay order ID")
+    razorpay_payment_id = models.CharField(max_length=100, blank=True, null=True, help_text="Razorpay payment ID")
+    razorpay_signature = models.CharField(max_length=255, blank=True, null=True, help_text="Razorpay payment signature")
+    
+    # Payment details
+    payment_method = models.CharField(max_length=50, blank=True, help_text="Payment method used (card, UPI, etc.)")
+    payment_date = models.DateTimeField(null=True, blank=True, help_text="Date payment was completed")
+    transaction_receipt = models.TextField(blank=True, help_text="Payment receipt/transaction details")
+    
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Out of Pocket Payment"
+        verbose_name_plural = "Out of Pocket Payments"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['admission', 'payment_status']),
+            models.Index(fields=['razorpay_order_id']),
+            models.Index(fields=['payment_status']),
+        ]
+    
+    def __str__(self):
+        return f"Payment for {self.admission} - ₹{self.out_of_pocket} ({self.payment_status})"

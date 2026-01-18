@@ -1,5 +1,9 @@
 from django.contrib import admin
-from .models import Doctor, Hospital, Treatment, Booking, Payment, InsuranceProvider, HospitalInsurance, EmergencyBooking, Insurance, InsuranceDependent
+from .models import (
+    Doctor, Hospital, Treatment, Booking, Payment, InsuranceProvider, 
+    HospitalInsurance, EmergencyBooking, Insurance, InsuranceDependent,
+    DailyExpense, OutOfPocketPayment
+)
 
 
 @admin.register(Doctor)
@@ -83,3 +87,23 @@ class InsuranceDependentAdmin(admin.ModelAdmin):
     list_filter = ['relationship', 'is_covered']
     date_hierarchy = 'date_of_birth'
     raw_id_fields = ['insurance']
+
+
+@admin.register(DailyExpense)
+class DailyExpenseAdmin(admin.ModelAdmin):
+    list_display = ['date', 'admission', 'expense_type', 'amount', 'insurance_covered', 'patient_share', 'verified']
+    search_fields = ['admission__user__username', 'admission__hospital__name', 'description']
+    list_filter = ['expense_type', 'verified', 'date']
+    date_hierarchy = 'date'
+    raw_id_fields = ['admission']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(OutOfPocketPayment)
+class OutOfPocketPaymentAdmin(admin.ModelAdmin):
+    list_display = ['admission', 'out_of_pocket', 'payment_status', 'payment_date', 'razorpay_payment_id']
+    search_fields = ['admission__user__username', 'admission__hospital__name', 'razorpay_order_id', 'razorpay_payment_id']
+    list_filter = ['payment_status', 'payment_date']
+    date_hierarchy = 'payment_date'
+    raw_id_fields = ['admission']
+    readonly_fields = ['created_at', 'updated_at']

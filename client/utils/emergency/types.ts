@@ -113,6 +113,12 @@ export interface EmergencyBooking {
     bed_type_display?: string;
     estimated_arrival_minutes?: number;
     admission_time?: string;
+
+    // Financial tracking fields (Phase 2)
+    discharge_date?: string;
+    total_bill_amount?: string;
+    insurance_approved_amount?: string;
+    out_of_pocket_amount?: string;
 }
 
 export interface BookingStatusUpdate {

@@ -6,7 +6,8 @@ from .views import (
     trigger_emergency, get_nearby_hospitals, book_emergency_bed,
     get_emergency_booking, update_booking_status, get_active_booking,
     get_emergency_bookings, InsuranceProviderViewSet, HospitalInsuranceViewSet,
-    get_hospital_accepted_insurances, verify_insurance_for_hospital
+    get_hospital_accepted_insurances, verify_insurance_for_hospital,
+    DailyExpenseViewSet, OutOfPocketPaymentViewSet
 )
 
 router = DefaultRouter()
@@ -19,6 +20,8 @@ router.register(r'dashboard', DashboardViewSet, basename='dashboard')
 router.register(r'insurance', InsuranceViewSet, basename='insurance')
 router.register(r'insurance-providers', InsuranceProviderViewSet, basename='insurance-provider')
 router.register(r'hospital-insurances', HospitalInsuranceViewSet, basename='hospital-insurance')
+router.register(r'expenses', DailyExpenseViewSet, basename='daily-expense')
+router.register(r'out-of-pocket-payments', OutOfPocketPaymentViewSet, basename='out-of-pocket-payment')
 
 urlpatterns = [
     path('', include(router.urls)),

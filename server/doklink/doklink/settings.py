@@ -277,6 +277,10 @@ EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='DokLink <noreply@doklink.com>')
 
+# Razorpay Configuration (Phase 2 - Payment Gateway)
+RAZORPAY_KEY_ID = env('RAZORPAY_KEY_ID', default='')
+RAZORPAY_KEY_SECRET = env('RAZORPAY_KEY_SECRET', default='')
+
 # SMS Configuration (Fast2SMS)
 FAST2SMS_API_KEY = env('FAST2SMS_API_KEY', default='')
 FAST2SMS_SENDER_ID = env('FAST2SMS_SENDER_ID', default='DOKLINK')
