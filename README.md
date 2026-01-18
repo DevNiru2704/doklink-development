@@ -544,76 +544,481 @@ For questions or issues:
 
 ---
 
-**Last Updated:** January 17, 2026  
-**Status:** Emergency Booking System - MVP COMPLETE ✅  
-**Next Phase:** Planned Admission & Doctor Appointments
+## 🔧 Detailed Setup Guides
 
-- Both devices are on the same WiFi network
-- Windows Firewall allows the connection
+### Backend Setup (Django)
 
-## Features
+#### Prerequisites
+- Python 3.11+
+- PostgreSQL (or SQLite for development)
+- Redis (optional, for caching)
 
-- User authentication (JWT)
-- Profile picture upload (Cloudinary)
-- Aadhaar verification
-- Form validation
-- Dark/Light mode
+#### Installation Steps
+
+```bash
+# Navigate to server
+cd server/doklink
+
+# Create virtual environment
+python -m venv .venv
+
+# Activate virtual environment
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Copy environment file
+cp env-example.env .env
+
+# Edit .env file with your credentials
+```
+
+#### Environment Configuration (.env)
+
+```bash
+# Database Settings
+DATABASE_NAME=doklink_db
+DATABASE_USER=your_db_user
+DATABASE_PASSWORD=your_db_password
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+
+# Django Settings
+SECRET_KEY=your-secret-key-here
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1,192.168.1.107
+
+# Cloudinary Credentials
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+# JWT Settings (optional - defaults provided)
+JWT_ACCESS_TOKEN_LIFETIME_MINUTES=60
+JWT_REFRESH_TOKEN_LIFETIME_DAYS=7
+
+# Email Settings (for OTP)
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=your-app-password
+
+# SMS Settings (optional)
+TWILIO_ACCOUNT_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_PHONE_NUMBER=your_twilio_number
+```
+
+#### Database Migration
+
+```bash
+# Run migrations
+python manage.py makemigrations
+python manage.py migrate
+
+# Create superuser (optional)
+python manage.py createsuperuser
+
+# Populate test data
+python manage.py populate_test_hospitals
+```
+
+#### Running the Server
+
+```bash
+# Development server
+python manage.py runserver 0.0.0.0:8000
+
+# Or using the VS Code task
+# Press Ctrl+Shift+P -> Tasks: Run Task -> Start Django Development Server
+```
+
+#### Redis Caching (Optional)
+
+The backend uses Redis for caching hospital search results (30-second TTL). To enable:
+
+```bash
+# Install Redis
+# Ubuntu/Debian:
+sudo apt-get install redis-server
+# macOS:
+brew install redis
+
+# Start Redis
+redis-server
+
+# Add to .env
+REDIS_HOST=localhost
+REDIS_PORT=6379
+```
 
 ---
 
-## ⚡ Quick Setup
+### Frontend Setup (React Native + Expo)
 
-- **JWT Authentication**: Secure token-based authentication
-- **Rate Limiting**: Anonymous (100/hour), Authenticated users (1000/hour)
-- **CORS Protection**: Configured for cross-origin requests
-- **CSRF Protection**: Django's built-in CSRF middleware enabled
-- **Clickjacking Protection**: X-Frame-Options header set to DENY
-- **Input Validation**: 
-  - Aadhaar number format validation (12 digits)
-  - PIN code validation (6 digits, no leading zero)
-  - Phone number validation with country code
-  - Password strength validation
-- **Permission-Based Access**: IsAuthenticated/AllowAny controls
-- **Cloudinary Signed Uploads**: Secure image upload with time-limited signatures
-- **Data Validation**: Comprehensive form validation on frontend and backend
-- **Security Headers**: XSS protection, content type sniffing prevention
+#### Prerequisites
+- Node.js 18+
+- npm or yarn
+- Expo Go app on your mobile device
 
-## Recommended Security Enhancements
+#### Installation Steps
 
-**Authentication & Authorization:**
-- JWT token rotation and blacklisting
-- Two-Factor Authentication (2FA/TOTP)
-- Device fingerprinting and tracking
-- Session management improvements
+```bash
+# Navigate to client
+cd client
 
-**API Security:**
-- Request signing with HMAC
-- API versioning and deprecation
-- Enhanced rate limiting per endpoint
-- Input sanitization and XSS protection
-- CSRF token validation for state-changing operations
-- SQL injection prevention with parameterized queries
-- Content Security Policy (CSP) headers
-- HTTP security headers (HSTS, X-Frame-Options)
+# Install dependencies
+npm install
 
-**Data Protection:**
-- Field-level encryption for sensitive data
-- Database encryption at rest
-- Secure storage for mobile tokens
-- Certificate pinning for API calls
+# Update API configuration
+# Edit config/api.ts and change the IP address to your computer's local IP
+```
 
-**Monitoring & Compliance:**
-- Comprehensive audit logging
-- Security event monitoring
-- Suspicious activity detection
-- GDPR/HIPAA compliance features
-- Intrusion detection and prevention
-- Vulnerability scanning and assessment
-- Security incident response procedures
+#### API Configuration
 
-## Tech Stack
+**Important:** You must update the API URL in `client/config/api.ts` every time your computer's IP address changes.
 
-- **Frontend**: React Native, Expo, TypeScript
-- **Backend**: Django, Django REST Framework, PostgreSQL
-- **Cloud**: Cloudinary for image storage
-- **Auth**: JWT tokens
+```typescript
+// config/api.ts
+const API_BASE_URL = 'http://192.168.1.107:8000/api/v1';
+//                          ^^^^^^^^^^^^^^^^
+//                          Replace with YOUR computer's IP address
+```
+
+To find your IP address:
+- **Windows:** `ipconfig` (look for IPv4 Address)
+- **macOS/Linux:** `ifconfig` or `ip addr`
+
+#### Running the App
+
+```bash
+# Start Expo development server
+npx expo start
+
+# Scan QR code with Expo Go app
+# Make sure both devices are on the same WiFi network
+```
+
+#### Permission System
+
+The app uses a custom permission management system. See the architecture below:
+
+**Permission Store (Zustand):**
+```typescript
+// store/permissionStore.ts
+{
+  permissions: {
+    location: 'granted' | 'denied' | 'undetermined',
+    files: 'granted' | 'denied' | 'undetermined',
+    camera: 'granted' | 'denied' | 'undetermined',
+    notifications: 'granted' | 'denied' | 'undetermined'
+  },
+  hasShownPermissionScreen: boolean,
+  updatePermission: (type, status) => void,
+  setHasShownPermissionScreen: (shown) => void
+}
+```
+
+**Permission Components:**
+- `LocationPermissionComponent.tsx` - Handles location permission with fallback to manual city selection
+- `FilesPermissionComponent.tsx` - Handles file/media access permissions
+
+For detailed information, see `PERMISSION_SYSTEM_GUIDE.md` in the client folder.
+
+#### Troubleshooting
+
+**Cannot connect to backend:**
+1. Verify IP address in `config/api.ts` matches your computer's IP
+2. Ensure both devices are on the same WiFi network
+3. Check Windows Firewall allows connections on port 8000
+4. Try accessing `http://YOUR_IP:8000/admin/` from your phone's browser
+
+**Expo Go crashes:**
+1. Clear Expo Go cache
+2. Restart development server
+3. Check for TypeScript errors: `npm run type-check`
+
+**Permission issues:**
+1. Check permissions in phone settings
+2. Uninstall and reinstall the app
+3. Grant permissions when prompted
+
+---
+
+## 📧 OTP System Setup
+
+### Gmail App Password Configuration
+
+The OTP system supports both email and SMS. For email-based OTP, you need to configure Gmail with an app password.
+
+#### Step 1: Enable 2-Factor Authentication
+
+1. Go to [Google Account Security](https://myaccount.google.com/security)
+2. Under "How you sign in to Google", select **2-Step Verification**
+3. Follow the setup process if not already enabled
+
+#### Step 2: Generate App Password
+
+1. Go to [App Passwords](https://myaccount.google.com/apppasswords)
+2. Select **Mail** as the app
+3. Select **Other** as the device and name it "Doklink Backend"
+4. Click **Generate**
+5. Copy the 16-character password (format: `xxxx xxxx xxxx xxxx`)
+
+#### Step 3: Configure Backend
+
+Add to your `.env` file:
+
+```bash
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=xxxx xxxx xxxx xxxx  # The app password from step 2
+```
+
+#### Step 4: Test OTP System
+
+Run the test script:
+
+```bash
+cd server/doklink
+python test_otp_system.py
+```
+
+Expected output:
+```
+Testing OTP System...
+✓ Email configuration verified
+✓ Test OTP sent successfully
+✓ OTP verification successful
+All tests passed!
+```
+
+### SMS Configuration (Optional)
+
+For SMS-based OTP, configure Twilio:
+
+```bash
+# Install Twilio SDK
+pip install twilio
+
+# Add to .env
+TWILIO_ACCOUNT_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_PHONE_NUMBER=+1234567890
+```
+
+### OTP Service Architecture
+
+```python
+# app_auth/otp_service.py
+class OTPService:
+    def generate_otp(user, method='email')  # Generate 6-digit OTP
+    def verify_otp(user, otp_code)          # Verify OTP within 10 minutes
+    def send_email_otp(email, otp_code)     # Send via email
+    def send_sms_otp(phone, otp_code)       # Send via SMS (if configured)
+```
+
+---
+
+## 🏥 Hospital Ranking Algorithm (Weighted Scoring)
+
+### Overview
+
+The emergency booking system uses a sophisticated weighted scoring algorithm to rank nearby hospitals based on multiple factors. This ensures patients are directed to the most suitable hospital for their emergency.
+
+### Scoring Factors
+
+| Factor | Weight | Description |
+|--------|--------|-------------|
+| Distance | 40% | Proximity to patient location |
+| Bed Availability | 30% | Available beds of required type |
+| Cost | 20% | Estimated emergency treatment cost |
+| Insurance Match | 10% | Accepts patient's insurance |
+
+### Distance Scoring
+
+```python
+def calculate_distance_score(distance_km):
+    """
+    - 0-5 km: 100 points (excellent)
+    - 5-10 km: 80 points (very good)
+    - 10-20 km: 60 points (good)
+    - 20-50 km: 40 points (acceptable)
+    - >50 km: 20 points (far)
+    """
+    if distance_km <= 5:
+        return 100
+    elif distance_km <= 10:
+        return 80
+    elif distance_km <= 20:
+        return 60
+    elif distance_km <= 50:
+        return 40
+    else:
+        return 20
+```
+
+### Bed Availability Scoring
+
+```python
+def calculate_bed_score(available_beds):
+    """
+    Linear scaling: More beds = better score
+    - 10+ beds: 100 points
+    - 0 beds: 0 points
+    """
+    return min(available_beds * 10, 100)
+```
+
+### Cost Scoring
+
+```python
+def calculate_cost_score(cost):
+    """
+    Inverse relationship: Lower cost = better score
+    - ₹0-5,000: 100 points
+    - ₹5,000-10,000: 80 points
+    - ₹10,000-20,000: 60 points
+    - ₹20,000+: 40 points
+    """
+    if cost <= 5000:
+        return 100
+    elif cost <= 10000:
+        return 80
+    elif cost <= 20000:
+        return 60
+    else:
+        return 40
+```
+
+### Insurance Scoring
+
+```python
+def calculate_insurance_score(accepts_insurance):
+    """
+    Binary: Accepts insurance = 100, doesn't = 0
+    """
+    return 100 if accepts_insurance else 0
+```
+
+### Final Score Calculation
+
+```python
+final_score = (
+    distance_score * 0.40 +
+    bed_score * 0.30 +
+    cost_score * 0.20 +
+    insurance_score * 0.10
+)
+```
+
+### Example Ranking
+
+Given 3 hospitals for an emergency 8km away:
+
+| Hospital | Distance | Beds | Cost | Insurance | Final Score |
+|----------|----------|------|------|-----------|-------------|
+| Apollo | 8km (80) | 5 (50) | ₹8k (80) | Yes (100) | **74** |
+| Fortis | 12km (60) | 10 (100) | ₹6k (100) | No (0) | **74** |
+| AMRI | 6km (80) | 3 (30) | ₹15k (60) | Yes (100) | **71** |
+
+**Result:** Apollo and Fortis tie at 74 points, ranked by distance (Apollo closer).
+
+### ChatGPT's Critique & Recommendations
+
+**Strengths:**
+✓ Clear weight distribution (40-30-20-10)
+✓ Distance prioritization makes sense for emergencies
+✓ Simple, interpretable scoring
+✓ Easy to explain to users
+
+**Weaknesses & Improvements:**
+1. **Non-linear distance penalty:** Should increase exponentially beyond 20km
+2. **Cost normalization:** Use min-max normalization instead of fixed brackets
+3. **Emergency type consideration:** Different weights for different emergency types
+4. **Historical data:** Include success rates, wait times, specializations
+5. **User preferences:** Allow customizable weights (cost vs distance priority)
+
+**Proposed Enhancements:**
+```python
+# Dynamic weight adjustment based on emergency type
+EMERGENCY_WEIGHTS = {
+    'accident': {'distance': 0.50, 'bed': 0.30, 'cost': 0.10, 'insurance': 0.10},
+    'cardiac': {'distance': 0.40, 'bed': 0.25, 'specialization': 0.20, 'cost': 0.15},
+    'pregnancy': {'distance': 0.35, 'bed': 0.25, 'maternity_ward': 0.25, 'cost': 0.15},
+}
+
+# Exponential distance penalty
+def calculate_distance_score_v2(distance_km):
+    return max(100 - (distance_km ** 1.5), 0)
+
+# Normalized cost scoring
+def calculate_cost_score_v2(cost, min_cost, max_cost):
+    normalized = (cost - min_cost) / (max_cost - min_cost)
+    return (1 - normalized) * 100
+```
+
+---
+
+## 🧪 Testing & Quality Assurance
+
+### Test Files
+
+All test files are located in `server/doklink/tests/`:
+
+- `test_backend.py` - Backend API integration tests
+- `test_dashboard_api.py` - Dashboard endpoint tests
+- `test_audit_system.py` - Audit logging tests
+- `test_otp_system.py` - OTP generation and verification tests
+- `test_api_call.py` - General API call tests
+
+### Running Tests
+
+```bash
+# Run all tests
+cd server/doklink
+python manage.py test
+
+# Run specific test file
+python test_otp_system.py
+
+# Run with coverage
+pip install coverage
+coverage run manage.py test
+coverage report
+```
+
+### Management Commands
+
+#### Expire Reservations
+
+Automatically expires old emergency bed reservations:
+
+```bash
+# Run manually
+python manage.py expire_reservations
+
+# Automate with cron (every 5 minutes)
+*/5 * * * * cd /path/to/doklink/server/doklink && python manage.py expire_reservations >> /var/log/doklink/expire.log 2>&1
+```
+
+#### Populate Test Hospitals
+
+```bash
+python manage.py populate_test_hospitals
+```
+
+---
+
+**Last Updated:** January 17, 2026  
+**Status:** Emergency Booking System - MVP COMPLETE ✅  
+**Next Phase:** Planned Admission & Doctor Appointments

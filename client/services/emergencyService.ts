@@ -37,23 +37,32 @@ class EmergencyService {
     }
 
     /**
-     * Get nearby hospitals based on user location
+     * Get nearby hospitals based on user location with weighted scoring
      */
     async getNearbyHospitals(
         latitude: number,
         longitude: number,
-        radius: number = 5
+        radiusKm: number = 50,
+        bedType: 'general' | 'icu' | 'all' = 'all',
+        showAll: boolean = false,
+        insuranceProviderId?: number
     ): Promise<NearbyHospitalResponse[]> {
         try {
+            const params: any = {
+                latitude,
+                longitude,
+                radius_km: radiusKm,
+                bed_type: bedType,
+                show_all: showAll,
+            };
+
+            if (insuranceProviderId) {
+                params.insurance_provider_id = insuranceProviderId;
+            }
+
             const response = await apiClient.get<NearbyHospitalResponse[]>(
-                '/healthcare/hospitals/nearby/',
-                {
-                    params: {
-                        latitude,
-                        longitude,
-                        radius,
-                    },
-                }
+                '/healthcare/emergency/hospitals/nearby/',
+                { params }
             );
             return response.data;
         } catch (error) {
@@ -256,6 +265,21 @@ class EmergencyService {
         const generalBeds = hospital.available_general_beds || 0;
         const icuBeds = hospital.available_icu_beds || 0;
         return generalBeds + icuBeds;
+    }
+
+    /**
+     * Get all insurance providers
+     */
+    async getInsuranceProviders(): Promise<{ results: any[] }> {
+        try {
+            const response = await apiClient.get<{ results: any[] }>(
+                '/healthcare/insurance-providers/'
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching insurance providers:', error);
+            throw error;
+        }
     }
 }
 

@@ -52,6 +52,10 @@ export interface NearbyHospitalResponse extends Hospital {
     distance: number;
     available_beds?: number;
     accepts_insurance?: boolean;
+    total_vacancy: number;
+    insurance_match: boolean;
+    priority_score: number;
+    recommended?: boolean;
 }
 
 export interface BedAvailability {

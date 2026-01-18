@@ -13,13 +13,17 @@ import {
     ActivityIndicator,
     Alert,
     RefreshControl,
+    TextInput,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import { emergencyService } from '@/services/emergencyService';
-import { NearbyHospitalResponse } from '@/utils/emergency/types';
+import { NearbyHospitalResponse, InsuranceProvider } from '@/utils/emergency/types';
+import LogoSVGDark from '@/assets/images/just_the_logo_dark.svg';
+import LogoSVGLight from '@/assets/images/just_the_logo_light.svg';
 
 export default function HospitalSelection() {
     const colorScheme = useColorScheme();
@@ -33,6 +37,10 @@ export default function HospitalSelection() {
     const [refreshing, setRefreshing] = useState(false);
     const [selectedHospital, setSelectedHospital] = useState<number | null>(null);
     const [searchRadius, setSearchRadius] = useState(50); // Default 50km
+    const [radiusInput, setRadiusInput] = useState('50'); // String for TextInput
+    const [showAll, setShowAll] = useState(false);
+    const [selectedInsurance, setSelectedInsurance] = useState<number | undefined>();
+    const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
     const [insuranceVisibleCount, setInsuranceVisibleCount] = useState<{ [key: number]: number }>({});
 
     const latitude = parseFloat(params.latitude as string);
@@ -40,40 +48,63 @@ export default function HospitalSelection() {
     const isEmergency = params.isEmergency === 'true';
 
     useEffect(() => {
+        if (isNaN(latitude) || isNaN(longitude)) {
+            Alert.alert('Error', 'Invalid location coordinates');
+            router.back();
+            return;
+        }
         loadNearbyHospitals();
+        loadInsuranceProviders();
     }, []);
 
     useEffect(() => {
         if (!loading) {
             loadNearbyHospitals();
         }
-    }, [searchRadius]);
+    }, [searchRadius, showAll, selectedInsurance]);
+
+    const loadInsuranceProviders = async () => {
+        try {
+            const providers = await emergencyService.getInsuranceProviders();
+            setInsuranceProviders(providers.results || []);
+        } catch (error) {
+            console.error('Error loading insurance providers:', error);
+        }
+    };
 
     const loadNearbyHospitals = async () => {
         try {
             setLoading(true);
+
+            // Round to 6 decimal places as required by backend
+            const roundedLat = Math.round(latitude * 1000000) / 1000000;
+            const roundedLon = Math.round(longitude * 1000000) / 1000000;
+
+            console.log('Loading hospitals with params:', {
+                latitude: roundedLat,
+                longitude: roundedLon,
+                searchRadius,
+                showAll,
+                selectedInsurance
+            });
+
             const nearbyHospitals = await emergencyService.getNearbyHospitals(
-                latitude,
-                longitude,
-                searchRadius
+                roundedLat,
+                roundedLon,
+                searchRadius,
+                'all',
+                showAll,
+                selectedInsurance
             );
 
-            // Calculate estimated time for each hospital
-            const hospitalsWithTime = nearbyHospitals.map((hospital) => ({
-                ...hospital,
-                estimated_time: emergencyService.calculateEstimatedTime(
-                    hospital.distance || 0
-                ),
-            }));
-
-            // Sort by distance
-            hospitalsWithTime.sort((a, b) => (a.distance || 0) - (b.distance || 0));
-
-            setHospitals(hospitalsWithTime);
+            console.log('Received hospitals:', nearbyHospitals.length);
+            setHospitals(nearbyHospitals);
         } catch (error: any) {
             console.error('Error loading hospitals:', error);
+            console.error('Error response:', error?.response?.data);
             Alert.alert(
                 'Error',
+                JSON.stringify(error?.response?.data) ||
                 error?.response?.data?.message ||
                 'Failed to load nearby hospitals. Please try again.',
                 [{ text: 'OK' }]
@@ -100,6 +131,54 @@ export default function HospitalSelection() {
             return;
         }
 
+        // Warn if not booking the recommended hospital
+        if (!hospital.recommended && hospitals.length > 0) {
+            const recommendedHospital = hospitals.find(h => h.recommended);
+
+            if (recommendedHospital) {
+                const reasons = [];
+
+                // Compare priority scores
+                const scoreDiff = ((recommendedHospital.priority_score - hospital.priority_score) * 100).toFixed(1);
+                reasons.push(`The recommended hospital has a ${scoreDiff}% higher priority score based on our weighted algorithm.`);
+
+                // Compare distances
+                if (recommendedHospital.distance < hospital.distance) {
+                    const distDiff = (hospital.distance - recommendedHospital.distance).toFixed(1);
+                    reasons.push(`It is ${distDiff} km closer to your location.`);
+                }
+
+                // Compare bed availability
+                if (recommendedHospital.total_vacancy > hospital.total_vacancy) {
+                    const bedDiff = recommendedHospital.total_vacancy - hospital.total_vacancy;
+                    reasons.push(`It has ${bedDiff} more available beds.`);
+                }
+
+                // Insurance match
+                if (recommendedHospital.insurance_match && !hospital.insurance_match && selectedInsurance) {
+                    reasons.push(`It accepts your selected insurance provider.`);
+                }
+
+                Alert.alert(
+                    'Are you sure?',
+                    `You are not booking the recommended hospital.\n\n${recommendedHospital.name} is recommended because:\n\n${reasons.map((r, i) => `${i + 1}. ${r}`).join('\n\n')}\n\nDo you still want to proceed with ${hospital.name}?`,
+                    [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                            text: 'Proceed Anyway',
+                            style: 'destructive',
+                            onPress: () => proceedWithBooking(hospital)
+                        }
+                    ]
+                );
+                return;
+            }
+        }
+
+        proceedWithBooking(hospital);
+    };
+
+    const proceedWithBooking = (hospital: NearbyHospitalResponse) => {
         setSelectedHospital(hospital.id);
 
         try {
@@ -148,6 +227,18 @@ export default function HospitalSelection() {
 
         return (
             <View key={hospital.id} style={styles.hospitalCard}>
+                {/* Recommended Badge */}
+                {hospital.recommended && (
+                    <View style={styles.recommendedBadge}>
+                        {isDark ? (
+                            <LogoSVGDark width={20} height={20} />
+                        ) : (
+                            <LogoSVGLight width={20} height={20} />
+                        )}
+                        <Text style={styles.recommendedText}>Recommended By DokLink</Text>
+                    </View>
+                )}
+
                 {/* Hospital Header */}
                 <TouchableOpacity
                     onPress={() => handleViewDetails(hospital)}
@@ -162,9 +253,20 @@ export default function HospitalSelection() {
                             />
                         </View>
                         <View style={styles.hospitalInfo}>
-                            <Text style={styles.hospitalName}>{hospital.name}</Text>
+                            <View style={styles.hospitalNameRow}>
+                                <Text style={styles.hospitalName}>{hospital.name}</Text>
+                                {hospital.insurance_match && (
+                                    <View style={styles.insuranceMatchBadge}>
+                                        <Ionicons name="shield-checkmark" size={14} color="#10B981" />
+                                        <Text style={styles.insuranceMatchText}>Insurance</Text>
+                                    </View>
+                                )}
+                            </View>
                             <Text style={styles.hospitalAddress}>
                                 {hospital.city}, {hospital.state}
+                            </Text>
+                            <Text style={styles.priorityScore}>
+                                Priority Score: {(hospital.priority_score * 100).toFixed(1)}%
                             </Text>
                         </View>
                     </View>
@@ -404,7 +506,72 @@ export default function HospitalSelection() {
                     </View>
                 </View>
 
-                {/* Radius Slider */}
+                {/* Filters Section */}
+                <View style={styles.filtersContainer}>
+                    {/* Radius Input */}
+                    <View style={styles.filterRow}>
+                        <Ionicons name="location" size={20} color={isDark ? '#60A5FA' : '#3B82F6'} />
+                        <Text style={styles.filterLabel}>Radius (km):</Text>
+                        <TextInput
+                            style={[styles.radiusInput, showAll && styles.radiusInputDisabled]}
+                            value={radiusInput}
+                            onChangeText={(text) => {
+                                if (showAll) return; // Prevent editing when Show All is enabled
+                                setRadiusInput(text);
+                                const num = parseInt(text);
+                                if (!isNaN(num) && num > 0 && num <= 500) {
+                                    setSearchRadius(num);
+                                }
+                            }}
+                            keyboardType="numeric"
+                            maxLength={3}
+                            placeholder="50"
+                            placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
+                            editable={!showAll}
+                        />
+                    </View>
+
+                    {/* Show All Checkbox */}
+                    <TouchableOpacity
+                        style={styles.checkboxRow}
+                        onPress={() => setShowAll(!showAll)}
+                    >
+                        <View style={[styles.checkbox, showAll && styles.checkboxChecked]}>
+                            {showAll && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                        </View>
+                        <Text style={styles.checkboxLabel}>Show All (Ignore Radius)</Text>
+                    </TouchableOpacity>
+
+                    {/* Insurance Filter */}
+                    <View style={styles.filterRow}>
+                        <Ionicons name="shield-checkmark" size={20} color={isDark ? '#60A5FA' : '#3B82F6'} />
+                        <Text style={styles.filterLabel}>Filter by Insurance:</Text>
+                        <View style={styles.pickerWrapper}>
+                            <Picker
+                                selectedValue={selectedInsurance}
+                                onValueChange={(value) => setSelectedInsurance(value)}
+                                style={styles.picker}
+                                dropdownIconColor={isDark ? '#FFFFFF' : '#000000'}
+                            >
+                                <Picker.Item
+                                    label="All Insurances"
+                                    value={undefined}
+                                    color={isDark ? '#FFFFFF' : '#000000'}
+                                />
+                                {insuranceProviders.map((provider) => (
+                                    <Picker.Item
+                                        key={provider.id}
+                                        label={provider.name}
+                                        value={provider.id}
+                                        color={isDark ? '#FFFFFF' : '#000000'}
+                                    />
+                                ))}
+                            </Picker>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Radius Slider - COMMENTED OUT (replaced by TextInput in filters)
                 <View style={styles.radiusSliderContainer}>
                     <View style={styles.radiusHeader}>
                         <Ionicons name="location" size={20} color={isDark ? '#60A5FA' : '#3B82F6'} />
@@ -452,6 +619,7 @@ export default function HospitalSelection() {
                         </TouchableOpacity>
                     </View>
                 </View>
+                */}
 
                 {/* Content */}
                 {loading ? (
@@ -877,5 +1045,125 @@ const getStyles = (isDark: boolean) =>
         sliderMarkerTextActive: {
             color: isDark ? '#60A5FA' : '#3B82F6',
             fontWeight: '700',
+        },
+        filtersContainer: {
+            backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+            padding: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: isDark ? '#374151' : '#E5E7EB',
+            gap: 12,
+        },
+        filterRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+        },
+        filterLabel: {
+            fontSize: 14,
+            fontWeight: '600',
+            color: isDark ? '#FFFFFF' : '#1F2937',
+        },
+        radiusInput: {
+            flex: 1,
+            height: 40,
+            borderWidth: 1,
+            borderColor: isDark ? '#374151' : '#D1D5DB',
+            borderRadius: 8,
+            paddingHorizontal: 12,
+            fontSize: 14,
+            color: isDark ? '#FFFFFF' : '#1F2937',
+            backgroundColor: isDark ? '#111827' : '#FFFFFF',
+        },
+        radiusInputDisabled: {
+            backgroundColor: isDark ? '#1F2937' : '#F3F4F6',
+            opacity: 0.6,
+        },
+        checkboxRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+        },
+        checkbox: {
+            width: 24,
+            height: 24,
+            borderWidth: 2,
+            borderColor: isDark ? '#60A5FA' : '#3B82F6',
+            borderRadius: 6,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        checkboxChecked: {
+            backgroundColor: isDark ? '#60A5FA' : '#3B82F6',
+        },
+        checkboxLabel: {
+            fontSize: 14,
+            color: isDark ? '#FFFFFF' : '#1F2937',
+        },
+        pickerWrapper: {
+            flex: 1,
+            borderWidth: 1,
+            borderColor: isDark ? '#374151' : '#D1D5DB',
+            borderRadius: 8,
+            backgroundColor: isDark ? '#111827' : '#FFFFFF',
+            justifyContent: 'center',
+            minHeight: 44,
+        },
+        picker: {
+            height: 50,
+            width: '100%',
+            color: isDark ? '#FFFFFF' : '#000000',
+            fontSize: 14,
+        },
+        recommendedBadge: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 16,
+            gap: 6,
+            marginBottom: 12,
+            alignSelf: 'flex-start',
+            borderWidth: 2,
+            borderColor: isDark ? '#3B82F6' : '#60A5FA',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+        },
+        recommendedLogo: {
+            width: 20,
+            height: 20,
+        },
+        recommendedText: {
+            fontSize: 11,
+            fontWeight: '700',
+            color: isDark ? '#60A5FA' : '#3B82F6',
+        },
+        hospitalNameRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+        },
+        insuranceMatchBadge: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: '#D1FAE5',
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 12,
+            gap: 4,
+        },
+        insuranceMatchText: {
+            fontSize: 10,
+            fontWeight: '600',
+            color: '#10B981',
+        },
+        priorityScore: {
+            fontSize: 12,
+            color: isDark ? '#9CA3AF' : '#6B7280',
+            marginTop: 4,
         },
     });

@@ -441,8 +441,22 @@ def trigger_emergency(request):
 @permission_classes([IsAuthenticated])
 def get_nearby_hospitals(request):
     """
-    Get nearby hospitals with bed availability (with Redis caching)
+    Get nearby hospitals with WEIGHTED SCORING for emergency bed booking
     GET /api/v1/healthcare/hospitals/nearby/
+    
+    Scoring Algorithm (ChatGPT-recommended):
+    - distanceScore = 1 - (distance / maxDistance)
+    - vacancyScore = totalBeds / maxBeds
+    - insuranceBonus = 0.1 if insurance match
+    - priorityScore = 0.6 * distanceScore + 0.3 * vacancyScore + insuranceBonus
+    
+    Parameters:
+    - latitude, longitude (required): User's location
+    - radius_km (optional, default 50): Search radius in km
+    - show_all (optional, default false): Ignore radius limit
+    - bed_type (optional, default 'all'): 'general', 'icu', or 'all'
+    - insurance_provider_id (optional): Filter by insurance provider
+    
     Cache TTL: 30 seconds (bed availability changes frequently)
     """
     serializer = NearbyHospitalSerializer(data=request.query_params)
@@ -451,53 +465,97 @@ def get_nearby_hospitals(request):
     
     latitude = float(serializer.validated_data['latitude'])
     longitude = float(serializer.validated_data['longitude'])
-    radius_km = serializer.validated_data.get('radius_km', 10.0)
+    radius_km = serializer.validated_data.get('radius_km', 50.0)
     bed_type = serializer.validated_data.get('bed_type', 'all')
+    show_all = serializer.validated_data.get('show_all', False)
+    insurance_provider_id = serializer.validated_data.get('insurance_provider_id')
     
     # Create cache key based on parameters
-    cache_key = f"nearby_hospitals:{latitude}:{longitude}:{radius_km}:{bed_type}"
+    cache_key = f"nearby_hospitals:{latitude}:{longitude}:{radius_km}:{bed_type}:{show_all}:{insurance_provider_id}"
     
     # Try to get from cache
     cached_data = cache.get(cache_key)
     if cached_data:
         return Response(cached_data)
     
-    # Filter hospitals with coordinates
+    # Filter hospitals with coordinates (show ALL hospitals, even with 0 beds)
     hospitals = Hospital.objects.filter(
         latitude__isnull=False,
         longitude__isnull=False
     )
     
-    # Filter by bed availability
-    if bed_type == 'general':
-        hospitals = hospitals.filter(available_general_beds__gt=0)
-    elif bed_type == 'icu':
-        hospitals = hospitals.filter(available_icu_beds__gt=0)
-    elif bed_type == 'all':
-        hospitals = hospitals.filter(
-            Q(available_general_beds__gt=0) | Q(available_icu_beds__gt=0)
-        )
-    
-    # Calculate distances
+    # Calculate distances and scores
     nearby_hospitals = []
+    max_distance = 0
+    max_beds = 1  # Avoid division by zero
+    
     for hospital in hospitals:
         distance = calculate_distance(
             latitude, longitude,
             float(hospital.latitude), float(hospital.longitude)
         )
         
-        if distance <= radius_km:
-            estimated_time = int((distance / 40) * 60)  # minutes at 40 km/h
-            
-            hospital_data = HospitalSerializer(hospital).data
-            hospital_data['distance'] = round(distance, 2)
-            hospital_data['estimated_time'] = estimated_time
-            nearby_hospitals.append(hospital_data)
+        # Apply radius filter (or ignore if show_all)
+        effective_radius = 999999 if show_all else radius_km
+        if distance > effective_radius:
+            continue
+        
+        # Calculate total vacancy based on bed_type
+        if bed_type == 'general':
+            total_vacancy = hospital.available_general_beds
+        elif bed_type == 'icu':
+            total_vacancy = hospital.available_icu_beds
+        else:  # 'all'
+            total_vacancy = hospital.available_general_beds + hospital.available_icu_beds
+        
+        # Check insurance match if provider specified
+        insurance_match = False
+        if insurance_provider_id:
+            insurance_match = HospitalInsurance.objects.filter(
+                hospital=hospital,
+                insurance_provider_id=insurance_provider_id,
+                is_active=True
+            ).exists()
+        
+        estimated_time = int((distance / 40) * 60)  # minutes at 40 km/h
+        
+        hospital_data = HospitalSerializer(hospital).data
+        hospital_data['distance'] = round(distance, 2)
+        hospital_data['estimated_time'] = estimated_time
+        hospital_data['total_vacancy'] = total_vacancy
+        hospital_data['insurance_match'] = insurance_match
+        hospital_data['priority_score'] = 0  # Will calculate after getting max values
+        
+        nearby_hospitals.append(hospital_data)
+        
+        # Track max values for normalization
+        max_distance = max(max_distance, distance)
+        max_beds = max(max_beds, total_vacancy)
     
-    # Sort by distance
-    nearby_hospitals.sort(key=lambda x: x['distance'])
+    # Calculate weighted priority scores
+    for hospital_data in nearby_hospitals:
+        distance = hospital_data['distance']
+        total_vacancy = hospital_data['total_vacancy']
+        insurance_match = hospital_data['insurance_match']
+        
+        # Normalize scores (0 to 1)
+        distance_score = 1 - (distance / max_distance) if max_distance > 0 else 1
+        vacancy_score = total_vacancy / max_beds if max_beds > 0 else 0
+        insurance_bonus = 0.1 if insurance_match else 0
+        
+        # Weighted priority score (distance 60%, vacancy 30%, insurance 10%)
+        priority_score = (0.6 * distance_score) + (0.3 * vacancy_score) + insurance_bonus
+        
+        hospital_data['priority_score'] = round(priority_score, 4)
     
-    # Cache the results for 30 seconds (bed availability changes frequently)
+    # Sort by priority score (descending - higher is better)
+    nearby_hospitals.sort(key=lambda x: x['priority_score'], reverse=True)
+    
+    # Mark top hospital as "Recommended by DokLink"
+    if nearby_hospitals:
+        nearby_hospitals[0]['recommended'] = True
+    
+    # Cache the results for 30 seconds
     cache.set(cache_key, nearby_hospitals, timeout=30)
     
     return Response(nearby_hospitals)

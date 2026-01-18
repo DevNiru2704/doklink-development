@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Doctor, Hospital, Treatment, Booking, Payment, InsuranceProvider, HospitalInsurance, EmergencyBooking, Insurance
+from .models import Doctor, Hospital, Treatment, Booking, Payment, InsuranceProvider, HospitalInsurance, EmergencyBooking, Insurance, InsuranceDependent
 
 
 @admin.register(Doctor)
@@ -74,3 +74,12 @@ class InsuranceAdmin(admin.ModelAdmin):
     list_filter = ['is_active', 'coverage_type', 'policy_expiry']
     date_hierarchy = 'policy_expiry'
     raw_id_fields = ['user']
+
+
+@admin.register(InsuranceDependent)
+class InsuranceDependentAdmin(admin.ModelAdmin):
+    list_display = ['name', 'relationship', 'insurance', 'date_of_birth', 'age', 'is_covered']
+    search_fields = ['name', 'insurance__policy_number', 'insurance__user__username']
+    list_filter = ['relationship', 'is_covered']
+    date_hierarchy = 'date_of_birth'
+    raw_id_fields = ['insurance']

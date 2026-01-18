@@ -325,6 +325,47 @@ class Insurance(models.Model):
         return f"{self.provider_name} - {self.policy_number} ({self.user.username})"
 
 
+class InsuranceDependent(models.Model):
+    """Dependents/family members covered under insurance policy"""
+    
+    RELATIONSHIP_CHOICES = [
+        ('spouse', 'Spouse'),
+        ('child', 'Child'),
+        ('parent', 'Parent'),
+        ('sibling', 'Sibling'),
+        ('other', 'Other'),
+    ]
+    
+    insurance = models.ForeignKey(Insurance, on_delete=models.CASCADE, related_name='dependents')
+    name = models.CharField(max_length=200, help_text="Full name of the dependent")
+    relationship = models.CharField(max_length=20, choices=RELATIONSHIP_CHOICES)
+    date_of_birth = models.DateField(help_text="Date of birth")
+    is_covered = models.BooleanField(default=True, help_text="Whether this dependent is actively covered")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Insurance Dependent"
+        verbose_name_plural = "Insurance Dependents"
+        ordering = ['relationship', 'name']
+        indexes = [
+            models.Index(fields=['insurance', 'is_covered']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.relationship}) - {self.insurance.policy_number}"
+    
+    @property
+    def age(self):
+        """Calculate current age from date of birth"""
+        from datetime import date
+        today = date.today()
+        return today.year - self.date_of_birth.year - (
+            (today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day)
+        )
+
+
 class InsuranceProvider(models.Model):
     """Static list of insurance providers for standardization"""
     name = models.CharField(max_length=200, unique=True, help_text="Insurance provider name")

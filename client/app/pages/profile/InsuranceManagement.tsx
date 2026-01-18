@@ -10,12 +10,23 @@ import {
     ActivityIndicator,
     Alert,
     Modal,
+    Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Formik } from 'formik';
+import { Formik, FieldArray } from 'formik';
 import * as Yup from 'yup';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import apiClient from '../../../config/api';
+
+interface InsuranceDependent {
+    id: number;
+    name: string;
+    relationship: 'spouse' | 'child' | 'parent' | 'sibling' | 'other';
+    date_of_birth: string;
+    age: number;
+    is_covered: boolean;
+}
 
 interface Insurance {
     id: number;
@@ -27,6 +38,14 @@ interface Insurance {
     is_active: boolean;
     is_expired: boolean;
     days_until_expiry: number;
+    dependents: InsuranceDependent[];
+}
+
+interface DependentForm {
+    name: string;
+    relationship: string;
+    date_of_birth: string;
+    is_covered: boolean;
 }
 
 interface InsuranceForm {
@@ -35,6 +54,7 @@ interface InsuranceForm {
     policy_expiry: string;
     coverage_type: string;
     coverage_amount: string;
+    dependents_data?: DependentForm[];
 }
 
 // Validation schema
@@ -70,6 +90,27 @@ const insuranceValidationSchema = Yup.object().shape({
             if (!value) return false;
             return parseInt(value) >= 1000;
         }),
+    dependents_data: Yup.array().of(
+        Yup.object().shape({
+            name: Yup.string()
+                .required('Dependent name is required')
+                .min(2, 'Name must be at least 2 characters'),
+            relationship: Yup.string()
+                .required('Relationship is required')
+                .oneOf(['spouse', 'child', 'parent', 'sibling', 'other'], 'Invalid relationship'),
+            date_of_birth: Yup.string()
+                .required('Date of birth is required')
+                .matches(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+                .test('is-past-date', 'Date of birth cannot be in the future', function (value) {
+                    if (!value) return false;
+                    const dobDate = new Date(value);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    return dobDate <= today;
+                }),
+            is_covered: Yup.boolean(),
+        })
+    ),
 });
 
 export default function InsuranceManagement() {
@@ -82,6 +123,12 @@ export default function InsuranceManagement() {
     const [modalVisible, setModalVisible] = useState(false);
     const [editingInsurance, setEditingInsurance] = useState<Insurance | null>(null);
     const [saving, setSaving] = useState(false);
+    const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showPolicyExpiryPicker, setShowPolicyExpiryPicker] = useState(false);
+    const [selectedDependentIndex, setSelectedDependentIndex] = useState<number | null>(null);
+    const [tempDate, setTempDate] = useState(new Date());
+    const [tempPolicyExpiryDate, setTempPolicyExpiryDate] = useState(new Date());
 
     const initialFormValues: InsuranceForm = {
         provider_name: '',
@@ -89,6 +136,7 @@ export default function InsuranceManagement() {
         policy_expiry: '',
         coverage_type: 'individual',
         coverage_amount: '',
+        dependents_data: [],
     };
 
     useEffect(() => {
@@ -242,10 +290,13 @@ export default function InsuranceManagement() {
                     insurances.map((insurance) => (
                         <View key={insurance.id} style={[styles.card, { backgroundColor: isDark ? '#1f2937' : '#ffffff' }]}>
                             <View style={styles.cardHeader}>
-                                <View>
-                                    <Text style={[styles.providerName, { color: isDark ? '#ffffff' : '#111827' }]}>
-                                        {insurance.provider_name}
-                                    </Text>
+                                <View style={{ flex: 1 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                                        <Ionicons name="shield-checkmark" size={20} color="#3b82f6" style={{ marginRight: 8 }} />
+                                        <Text style={[styles.providerName, { color: isDark ? '#ffffff' : '#111827' }]}>
+                                            {insurance.provider_name}
+                                        </Text>
+                                    </View>
                                     <Text style={[styles.policyNumber, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
                                         {insurance.policy_number}
                                     </Text>
@@ -274,6 +325,45 @@ export default function InsuranceManagement() {
                                         ₹{parseFloat(insurance.coverage_amount).toLocaleString()}
                                     </Text>
                                 </View>
+
+                                {/* Dependents Section */}
+                                {insurance.dependents && insurance.dependents.length > 0 && (
+                                    <View style={[styles.dependentsSection, { borderTopColor: isDark ? '#374151' : '#e5e7eb' }]}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                                            <Ionicons name="people" size={16} color="#10b981" />
+                                            <Text style={[styles.dependentsTitle, { color: isDark ? '#ffffff' : '#111827' }]}>
+                                                Covered Dependents ({insurance.dependents.filter(d => d.is_covered).length})
+                                            </Text>
+                                        </View>
+                                        {insurance.dependents.map((dependent) => (
+                                            dependent.is_covered && (
+                                                <View key={dependent.id} style={styles.dependentItem}>
+                                                    <View style={[styles.dependentIcon, { backgroundColor: isDark ? '#374151' : '#f3f4f6' }]}>
+                                                        <Ionicons
+                                                            name={
+                                                                dependent.relationship === 'spouse' ? 'heart' :
+                                                                    dependent.relationship === 'child' ? 'person' :
+                                                                        dependent.relationship === 'parent' ? 'person-add' :
+                                                                            dependent.relationship === 'sibling' ? 'people-outline' :
+                                                                                'person-circle-outline'
+                                                            }
+                                                            size={16}
+                                                            color="#10b981"
+                                                        />
+                                                    </View>
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={[styles.dependentName, { color: isDark ? '#ffffff' : '#111827' }]}>
+                                                            {dependent.name}
+                                                        </Text>
+                                                        <Text style={[styles.dependentDetails, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                                            {dependent.relationship.charAt(0).toUpperCase() + dependent.relationship.slice(1)} • {dependent.age} years
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            )
+                                        ))}
+                                    </View>
+                                )}
                             </View>
 
                             <View style={styles.cardActions}>
@@ -337,12 +427,18 @@ export default function InsuranceManagement() {
                                 policy_expiry: editingInsurance.policy_expiry,
                                 coverage_type: editingInsurance.coverage_type,
                                 coverage_amount: editingInsurance.coverage_amount,
+                                dependents_data: editingInsurance.dependents?.map(d => ({
+                                    name: d.name,
+                                    relationship: d.relationship,
+                                    date_of_birth: d.date_of_birth,
+                                    is_covered: d.is_covered,
+                                })) || [],
                             } : initialFormValues}
                             validationSchema={insuranceValidationSchema}
                             onSubmit={handleSave}
                             enableReinitialize={true}
                         >
-                            {({ handleChange, handleSubmit, values, errors, touched, setFieldValue }) => (
+                            {({ handleChange, handleBlur, handleSubmit, values, errors, touched, setFieldValue }) => (
                                 <>
                                     <ScrollView style={styles.modalBody}>
                                         <Text style={[styles.label, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
@@ -392,26 +488,50 @@ export default function InsuranceManagement() {
                                         <Text style={[styles.label, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
                                             Policy Expiry Date *
                                         </Text>
-                                        <TextInput
+                                        <TouchableOpacity
                                             style={[
                                                 styles.input,
+                                                styles.datePickerButton,
                                                 {
                                                     backgroundColor: isDark ? '#374151' : '#f3f4f6',
-                                                    color: isDark ? '#ffffff' : '#111827',
                                                     borderColor: touched.policy_expiry && errors.policy_expiry ? '#ef4444' : 'transparent',
                                                     borderWidth: touched.policy_expiry && errors.policy_expiry ? 1 : 0,
                                                 }
                                             ]}
-                                            value={values.policy_expiry}
-                                            onChangeText={handleChange('policy_expiry')}
-                                            placeholder="YYYY-MM-DD"
-                                            placeholderTextColor={isDark ? '#6b7280' : '#9ca3af'}
-                                        />
+                                            onPress={() => {
+                                                setTempPolicyExpiryDate(values.policy_expiry ? new Date(values.policy_expiry) : new Date());
+                                                setShowPolicyExpiryPicker(true);
+                                            }}
+                                        >
+                                            <Text style={[
+                                                styles.datePickerText,
+                                                { color: values.policy_expiry ? (isDark ? '#ffffff' : '#111827') : (isDark ? '#6b7280' : '#9ca3af') }
+                                            ]}>
+                                                {values.policy_expiry || 'Select Policy Expiry Date'}
+                                            </Text>
+                                            <Ionicons name="calendar-outline" size={20} color={isDark ? '#9ca3af' : '#6b7280'} />
+                                        </TouchableOpacity>
                                         {touched.policy_expiry && errors.policy_expiry && (
                                             <Text style={styles.errorText}>{errors.policy_expiry}</Text>
                                         )}
 
-                                        <Text style={[styles.label, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                        {/* Policy Expiry Date Picker */}
+                                        {showPolicyExpiryPicker && (
+                                            <DateTimePicker
+                                                value={tempPolicyExpiryDate}
+                                                mode="date"
+                                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                                onChange={(event, selectedDate) => {
+                                                    setShowPolicyExpiryPicker(Platform.OS === 'ios');
+                                                    if (selectedDate) {
+                                                        const formattedDate = selectedDate.toISOString().split('T')[0];
+                                                        setFieldValue('policy_expiry', formattedDate);
+                                                        setTempPolicyExpiryDate(selectedDate);
+                                                    }
+                                                }}
+                                                minimumDate={new Date()}
+                                            />
+                                        )}                                        <Text style={[styles.label, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
                                             Coverage Type *
                                         </Text>
                                         <View style={styles.coverageTypeButtons}>
@@ -455,6 +575,167 @@ export default function InsuranceManagement() {
                                         />
                                         {touched.coverage_amount && errors.coverage_amount && (
                                             <Text style={styles.errorText}>{errors.coverage_amount}</Text>
+                                        )}
+
+                                        {/* Dependents Section */}
+                                        <FieldArray name="dependents_data">
+                                            {({ push, remove }) => (
+                                                <View style={[styles.dependentsFormSection, { borderTopColor: isDark ? '#374151' : '#e5e7eb' }]}>
+                                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                                        <Text style={[styles.label, { marginTop: 0, color: isDark ? '#ffffff' : '#111827' }]}>
+                                                            Dependents (Optional)
+                                                        </Text>
+                                                        <TouchableOpacity
+                                                            style={styles.addDependentButton}
+                                                            onPress={() => {
+                                                                push({
+                                                                    name: '',
+                                                                    relationship: 'spouse',
+                                                                    date_of_birth: '',
+                                                                    is_covered: true,
+                                                                });
+                                                            }}
+                                                        >
+                                                            <Ionicons name="add-circle" size={20} color="#3b82f6" />
+                                                            <Text style={styles.addDependentButtonText}>Add Dependent</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+
+                                                    {values.dependents_data && values.dependents_data.map((dependent, index) => {
+                                                        const dependentErrors = (errors.dependents_data as any)?.[index];
+                                                        const dependentTouched = (touched.dependents_data as any)?.[index];
+
+                                                        return (
+                                                            <View key={index} style={[styles.dependentFormCard, { backgroundColor: isDark ? '#374151' : '#f9fafb' }]}>
+                                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                                    <Text style={[styles.dependentFormTitle, { color: isDark ? '#ffffff' : '#111827' }]}>
+                                                                        Dependent {index + 1}
+                                                                    </Text>
+                                                                    <TouchableOpacity onPress={() => remove(index)}>
+                                                                        <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                                                                    </TouchableOpacity>
+                                                                </View>
+
+                                                                <Text style={[styles.dependentLabel, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                                                    Name *
+                                                                </Text>
+                                                                <TextInput
+                                                                    style={[
+                                                                        styles.dependentInput,
+                                                                        {
+                                                                            backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                                                                            color: isDark ? '#ffffff' : '#111827',
+                                                                            borderColor: dependentTouched?.name && dependentErrors?.name ? '#ef4444' : '#d1d5db',
+                                                                        }
+                                                                    ]}
+                                                                    value={dependent.name}
+                                                                    onChangeText={handleChange(`dependents_data.${index}.name`)}
+                                                                    onBlur={handleBlur(`dependents_data.${index}.name`)}
+                                                                    placeholder="Full name"
+                                                                    placeholderTextColor={isDark ? '#6b7280' : '#9ca3af'}
+                                                                />
+                                                                {dependentTouched?.name && dependentErrors?.name && (
+                                                                    <Text style={styles.errorText}>{dependentErrors.name}</Text>
+                                                                )}
+
+                                                                <Text style={[styles.dependentLabel, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                                                    Relationship *
+                                                                </Text>
+                                                                <View style={styles.relationshipButtons}>
+                                                                    {['spouse', 'child', 'parent', 'sibling', 'other'].map((rel) => (
+                                                                        <TouchableOpacity
+                                                                            key={rel}
+                                                                            style={[
+                                                                                styles.relationshipButton,
+                                                                                dependent.relationship === rel && styles.relationshipButtonActive
+                                                                            ]}
+                                                                            onPress={() => setFieldValue(`dependents_data.${index}.relationship`, rel)}
+                                                                        >
+                                                                            <Text style={[
+                                                                                styles.relationshipButtonText,
+                                                                                dependent.relationship === rel && styles.relationshipButtonTextActive
+                                                                            ]}>
+                                                                                {rel.charAt(0).toUpperCase() + rel.slice(1)}
+                                                                            </Text>
+                                                                        </TouchableOpacity>
+                                                                    ))}
+                                                                </View>
+                                                                {dependentTouched?.relationship && dependentErrors?.relationship && (
+                                                                    <Text style={styles.errorText}>{dependentErrors.relationship}</Text>
+                                                                )}
+
+                                                                <Text style={[styles.dependentLabel, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                                                    Date of Birth *
+                                                                </Text>
+                                                                <TouchableOpacity
+                                                                    style={[
+                                                                        styles.dependentInput,
+                                                                        styles.datePickerButton,
+                                                                        {
+                                                                            backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                                                                            borderColor: dependentTouched?.date_of_birth && dependentErrors?.date_of_birth ? '#ef4444' : '#d1d5db',
+                                                                        }
+                                                                    ]}
+                                                                    onPress={() => {
+                                                                        setSelectedDependentIndex(index);
+                                                                        setTempDate(dependent.date_of_birth ? new Date(dependent.date_of_birth) : new Date());
+                                                                        setShowDatePicker(true);
+                                                                    }}
+                                                                >
+                                                                    <Text style={[
+                                                                        styles.datePickerText,
+                                                                        { color: dependent.date_of_birth ? (isDark ? '#ffffff' : '#111827') : (isDark ? '#6b7280' : '#9ca3af') }
+                                                                    ]}>
+                                                                        {dependent.date_of_birth || 'Select Date of Birth'}
+                                                                    </Text>
+                                                                    <Ionicons name="calendar-outline" size={20} color={isDark ? '#9ca3af' : '#6b7280'} />
+                                                                </TouchableOpacity>
+                                                                {dependentTouched?.date_of_birth && dependentErrors?.date_of_birth && (
+                                                                    <Text style={styles.errorText}>{dependentErrors.date_of_birth}</Text>
+                                                                )}
+
+                                                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                                                                    <TouchableOpacity
+                                                                        style={[
+                                                                            styles.checkbox,
+                                                                            dependent.is_covered && styles.checkboxChecked
+                                                                        ]}
+                                                                        onPress={() => setFieldValue(`dependents_data.${index}.is_covered`, !dependent.is_covered)}
+                                                                    >
+                                                                        {dependent.is_covered && (
+                                                                            <Ionicons name="checkmark" size={16} color="#ffffff" />
+                                                                        )}
+                                                                    </TouchableOpacity>
+                                                                    <Text style={[styles.checkboxLabel, { color: isDark ? '#ffffff' : '#111827' }]}>
+                                                                        Currently covered under this policy
+                                                                    </Text>
+                                                                </View>
+                                                            </View>
+                                                        );
+                                                    })}
+                                                </View>
+                                            )}
+                                        </FieldArray>
+
+                                        {/* Date Picker Modal */}
+                                        {showDatePicker && selectedDependentIndex !== null && (
+                                            <DateTimePicker
+                                                value={tempDate}
+                                                mode="date"
+                                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                                onChange={(event, selectedDate) => {
+                                                    setShowDatePicker(Platform.OS === 'ios');
+                                                    if (selectedDate && selectedDependentIndex !== null) {
+                                                        const formattedDate = selectedDate.toISOString().split('T')[0];
+                                                        setFieldValue(`dependents_data.${selectedDependentIndex}.date_of_birth`, formattedDate);
+                                                        setTempDate(selectedDate);
+                                                        if (Platform.OS === 'android') {
+                                                            setSelectedDependentIndex(null);
+                                                        }
+                                                    }
+                                                }}
+                                                maximumDate={new Date()}
+                                            />
                                         )}
                                     </ScrollView>
 
@@ -611,6 +892,116 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#3b82f6',
     },
+    dependentsSection: {
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: 1,
+    },
+    dependentsTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginLeft: 6,
+    },
+    dependentItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 4,
+    },
+    dependentIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    dependentName: {
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    dependentDetails: {
+        fontSize: 12,
+        marginTop: 2,
+    },
+    dependentsFormSection: {
+        marginTop: 16,
+        paddingTop: 16,
+        borderTopWidth: 1,
+    },
+    addDependentButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    addDependentButtonText: {
+        color: '#3b82f6',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    dependentFormCard: {
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 12,
+    },
+    dependentFormTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    dependentLabel: {
+        fontSize: 12,
+        fontWeight: '500',
+        marginTop: 8,
+        marginBottom: 6,
+    },
+    dependentInput: {
+        borderRadius: 6,
+        padding: 10,
+        fontSize: 14,
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+    },
+    relationshipButtons: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+    },
+    relationshipButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+    },
+    relationshipButtonActive: {
+        backgroundColor: '#3b82f6',
+        borderColor: '#3b82f6',
+    },
+    relationshipButtonText: {
+        color: '#6b7280',
+        fontSize: 12,
+    },
+    relationshipButtonTextActive: {
+        color: '#ffffff',
+        fontWeight: '600',
+    },
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 4,
+        borderWidth: 2,
+        borderColor: '#d1d5db',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 8,
+    },
+    checkboxChecked: {
+        backgroundColor: '#3b82f6',
+        borderColor: '#3b82f6',
+    },
+    checkboxLabel: {
+        fontSize: 13,
+    },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -646,6 +1037,14 @@ const styles = StyleSheet.create({
     input: {
         borderRadius: 8,
         padding: 12,
+        fontSize: 16,
+    },
+    datePickerButton: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    datePickerText: {
         fontSize: 16,
     },
     errorText: {

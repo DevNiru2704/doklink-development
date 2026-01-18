@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, Insurance, InsuranceProvider, HospitalInsurance
+from .models import Doctor, Hospital, Treatment, Booking, Payment, EmergencyBooking, Insurance, InsuranceProvider, HospitalInsurance, InsuranceDependent
 from django.utils import timezone
 from datetime import timedelta
 
@@ -130,11 +130,13 @@ class EmergencyTriggerSerializer(serializers.Serializer):
 
 
 class NearbyHospitalSerializer(serializers.Serializer):
-    """Serializer for fetching nearby hospitals"""
+    """Serializer for fetching nearby hospitals with weighted scoring"""
     latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True)
     longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=True)
-    radius_km = serializers.FloatField(default=10.0, required=False)
+    radius_km = serializers.FloatField(default=50.0, required=False)
     bed_type = serializers.ChoiceField(choices=['general', 'icu', 'all'], default='all', required=False)
+    show_all = serializers.BooleanField(default=False, required=False)
+    insurance_provider_id = serializers.IntegerField(required=False, allow_null=True)
 
 
 class BookEmergencyBedSerializer(serializers.Serializer):
@@ -157,19 +159,43 @@ class UpdateBookingStatusSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True)
 
 
+class InsuranceDependentSerializer(serializers.ModelSerializer):
+    """Serializer for Insurance Dependent model"""
+    
+    age = serializers.ReadOnlyField()
+    
+    class Meta:
+        model = InsuranceDependent
+        fields = [
+            'id', 'insurance', 'name', 'relationship', 'date_of_birth', 
+            'age', 'is_covered', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['insurance', 'age', 'created_at', 'updated_at']
+    
+    def validate_date_of_birth(self, value):
+        """Ensure date of birth is not in the future"""
+        from datetime import date
+        if value > date.today():
+            raise serializers.ValidationError("Date of birth cannot be in the future")
+        return value
+
+
 class InsuranceSerializer(serializers.ModelSerializer):
     """Serializer for Insurance model (Section 2.2)"""
     
     user_name = serializers.SerializerMethodField(read_only=True)
     is_expired = serializers.SerializerMethodField(read_only=True)
     days_until_expiry = serializers.SerializerMethodField(read_only=True)
+    dependents = InsuranceDependentSerializer(many=True, read_only=True)
+    dependents_data = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
     
     class Meta:
         model = Insurance
         fields = [
             'id', 'user', 'provider_name', 'policy_number', 'policy_expiry',
             'coverage_type', 'coverage_amount', 'is_active', 'user_name',
-            'is_expired', 'days_until_expiry', 'created_at', 'updated_at'
+            'is_expired', 'days_until_expiry', 'dependents', 'dependents_data',
+            'created_at', 'updated_at'
         ]
         read_only_fields = ['user', 'created_at', 'updated_at']
     
@@ -206,6 +232,37 @@ class InsuranceSerializer(serializers.ModelSerializer):
         if not self.instance and value < date.today():
             raise serializers.ValidationError("Policy expiry date cannot be in the past")
         return value
+    
+    def create(self, validated_data):
+        """Create insurance with dependents"""
+        dependents_data = validated_data.pop('dependents_data', [])
+        insurance = Insurance.objects.create(**validated_data)
+        
+        # Create dependents
+        for dependent_data in dependents_data:
+            InsuranceDependent.objects.create(insurance=insurance, **dependent_data)
+        
+        return insurance
+    
+    def update(self, instance, validated_data):
+        """Update insurance and dependents"""
+        dependents_data = validated_data.pop('dependents_data', None)
+        
+        # Update insurance fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Update dependents if provided
+        if dependents_data is not None:
+            # Delete existing dependents
+            instance.dependents.all().delete()
+            
+            # Create new dependents
+            for dependent_data in dependents_data:
+                InsuranceDependent.objects.create(insurance=instance, **dependent_data)
+        
+        return instance
 
 
 class InsuranceProviderSerializer(serializers.ModelSerializer):
