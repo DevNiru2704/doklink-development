@@ -31,6 +31,11 @@ const bookingValidationSchema = Yup.object().shape({
     bedType: Yup.string()
         .oneOf(['general', 'icu'], 'Invalid bed type')
         .required('Bed type is required'),
+    patientName: Yup.string()
+        .required('Patient name is required')
+        .min(2, 'Name must be at least 2 characters')
+        .max(100, 'Name must be at most 100 characters')
+        .matches(/^[a-zA-Z\s]+$/, 'Name must contain only letters and spaces'),
     patientCondition: Yup.string()
         .max(500, 'Patient condition must be at most 500 characters'),
     contactPerson: Yup.string()
@@ -67,6 +72,7 @@ export default function BookingDetails() {
     const initialValues = {
         emergencyTypes: [] as string[],
         bedType: 'general' as 'general' | 'icu',
+        patientName: '',
         patientCondition: '',
         contactPerson: '',
         contactPhone: '',
@@ -80,6 +86,7 @@ export default function BookingDetails() {
                 hospital_id: hospitalId,
                 emergency_type: values.emergencyTypes.join(', '),
                 bed_type: values.bedType,
+                patient_name: values.patientName,
                 patient_condition: values.patientCondition,
                 contact_person: values.contactPerson,
                 contact_phone: values.contactPhone,
@@ -259,6 +266,22 @@ export default function BookingDetails() {
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
+
+                                {/* Patient Name */}
+                                <Text style={styles.label}>Patient Name *</Text>
+                                <TextInput
+                                    style={[
+                                        styles.input,
+                                        touched.patientName && errors.patientName && { borderColor: '#ef4444', borderWidth: 1 }
+                                    ]}
+                                    value={values.patientName}
+                                    onChangeText={handleChange('patientName')}
+                                    placeholder="Full name of patient (required)"
+                                    placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
+                                />
+                                {touched.patientName && errors.patientName && (
+                                    <Text style={styles.errorText}>{errors.patientName}</Text>
+                                )}
 
                                 {/* Patient Condition */}
                                 <Text style={styles.label}>Patient Condition (Optional)</Text>

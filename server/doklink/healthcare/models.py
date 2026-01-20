@@ -201,7 +201,8 @@ class EmergencyBooking(models.Model):
     bed_type = models.CharField(max_length=10, choices=BED_TYPE_CHOICES, default='general')
     patient_condition = models.TextField(help_text="Brief description of patient's condition")
     
-    # Contact information (REQUIRED)
+    # Patient and Contact information (REQUIRED)
+    patient_name = models.CharField(max_length=200, help_text="Name of the patient")
     contact_person = models.CharField(max_length=200, help_text="Name of contact person")
     contact_phone = PhoneNumberField(help_text="Contact person's phone number")
     

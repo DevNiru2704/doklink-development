@@ -77,6 +77,7 @@ export interface EmergencyBookingRequest {
     hospital_id: number;
     emergency_type: string;
     bed_type?: 'general' | 'icu';
+    patient_name?: string;
     patient_condition?: string;
     contact_person?: string;
     contact_phone?: string;
@@ -93,10 +94,11 @@ export interface EmergencyBooking {
     hospital: Hospital;
     booking_type: 'emergency';
     emergency_type: string;
+    patient_name?: string;
     patient_condition?: string;
     contact_person?: string;
     contact_phone?: string;
-    status: 'reserved' | 'patient_on_way' | 'arrived' | 'admitted' | 'cancelled' | 'expired';
+    status: 'reserved' | 'patient_on_way' | 'arrived' | 'admitted' | 'discharged' | 'cancelled' | 'expired';
     arrival_time?: string;
     booking_date: string;
     booking_time: string;
@@ -123,7 +125,7 @@ export interface EmergencyBooking {
 
 export interface BookingStatusUpdate {
     booking_id: number;
-    status: 'reserved' | 'patient_on_way' | 'arrived' | 'admitted' | 'cancelled' | 'expired';
+    status: 'reserved' | 'patient_on_way' | 'arrived' | 'admitted' | 'discharged' | 'cancelled' | 'expired';
     notes?: string;
 }
 

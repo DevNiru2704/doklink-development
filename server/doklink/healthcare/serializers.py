@@ -113,7 +113,7 @@ class EmergencyBookingSerializer(serializers.ModelSerializer):
         model = EmergencyBooking
         fields = [
             'id', 'hospital', 'hospital_id', 'emergency_type', 'emergency_type_display',
-            'bed_type', 'bed_type_display', 'patient_condition', 'contact_person',
+            'bed_type', 'bed_type_display', 'patient_name', 'patient_condition', 'contact_person',
             'contact_phone', 'status', 'status_display', 'reservation_expires_at',
             'arrival_time', 'admission_time', 'discharge_date', 'booking_latitude', 'booking_longitude',
             'estimated_arrival_minutes', 'total_bill_amount', 'insurance_approved_amount',
@@ -150,6 +150,7 @@ class BookEmergencyBedSerializer(serializers.Serializer):
     hospital_id = serializers.IntegerField(required=True)
     emergency_type = serializers.CharField(required=True)  # Now accepts multiple types as comma-separated
     bed_type = serializers.ChoiceField(choices=EmergencyBooking.BED_TYPE_CHOICES, required=False, default='general')
+    patient_name = serializers.CharField(required=True, max_length=200)  # REQUIRED
     patient_condition = serializers.CharField(required=False, allow_blank=True, default='')
     contact_person = serializers.CharField(required=True, max_length=200)  # REQUIRED
     contact_phone = serializers.CharField(required=True)  # REQUIRED

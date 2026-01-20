@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -601,6 +601,7 @@ def book_emergency_bed(request):
         hospital=hospital,
         emergency_type=serializer.validated_data['emergency_type'],
         bed_type=bed_type,
+        patient_name=serializer.validated_data['patient_name'],  # REQUIRED
         patient_condition=serializer.validated_data.get('patient_condition', ''),
         contact_person=serializer.validated_data['contact_person'],  # REQUIRED
         contact_phone=serializer.validated_data['contact_phone'],  # REQUIRED
@@ -660,12 +661,12 @@ def get_emergency_booking(request, booking_id):
         )
 
 
-@api_view(['PUT'])
+@api_view(['POST', 'PUT'])
 @permission_classes([IsAuthenticated])
 def update_booking_status(request, booking_id):
     """
     Update emergency booking status
-    PUT /api/v1/healthcare/emergency/booking/{id}/status/
+    POST/PUT /api/v1/healthcare/emergency/booking/{id}/status/
     """
     try:
         booking = EmergencyBooking.objects.select_related('hospital').get(
@@ -951,13 +952,14 @@ class DailyExpenseViewSet(viewsets.ModelViewSet):
             )
         
         # Group expenses by date
-        from django.db.models import Sum
+        from django.db.models import Sum, Count
         daily_expenses = DailyExpense.objects.filter(
             admission_id=admission_id
         ).values('date').annotate(
             total_amount=Sum('amount'),
             total_insurance=Sum('insurance_covered'),
-            total_patient=Sum('patient_share')
+            total_patient=Sum('patient_share'),
+            expense_count=Count('id')
         ).order_by('date')
         
         return Response({
@@ -1155,16 +1157,27 @@ class OutOfPocketPaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        payment = OutOfPocketPayment.objects.filter(
-            admission_id=admission_id,
-            admission__user=request.user
+        # Get admission to verify permissions and get financial data
+        admission = EmergencyBooking.objects.filter(
+            id=admission_id,
+            user=request.user
         ).first()
         
-        if not payment:
+        if not admission:
             return Response(
-                {'error': 'Payment record not found'},
+                {'error': 'Admission not found or you don\'t have permission'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        
+        # Get or create payment record
+        payment, created = OutOfPocketPayment.objects.get_or_create(
+            admission=admission,
+            defaults={
+                'total_amount': admission.total_bill_amount or '0',
+                'insurance_covered': admission.insurance_approved_amount or '0',
+                'out_of_pocket': admission.out_of_pocket_amount or '0'
+            }
+        )
         
         serializer = self.get_serializer(payment)
         return Response(serializer.data)

@@ -27,11 +27,11 @@ export default function BookingHistory() {
         try {
             setLoading(true);
             const data = await emergencyService.getBookingHistory();
-            // Filter only discharged/admitted bookings with admission time
-            const completedBookings = Array.isArray(data)
-                ? data.filter(booking => booking.admission_time)
+            // Show only past bookings (discharged status only)
+            const pastBookings = Array.isArray(data)
+                ? data.filter(booking => booking.status === 'discharged')
                 : [];
-            setBookings(completedBookings);
+            setBookings(pastBookings);
         } catch (error) {
             console.error('Error loading booking history:', error);
             setBookings([]);
@@ -354,6 +354,22 @@ const styles = StyleSheet.create({
     financialDivider: {
         width: 1,
         backgroundColor: '#e5e7eb',
+    },
+    payNowButton: {
+        marginTop: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 10,
+        backgroundColor: '#3b82f6',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    payNowButtonText: {
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: '600',
     },
     emptyContainer: {
         flex: 1,

@@ -11,6 +11,9 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import apiClient from '@/config/api';
+import razorpayService from '@/services/razorpayService';
+import { authService } from '@/services/authService';
+import { RAZORPAY_KEY_ID } from '@/config/razorpay';
 
 interface OutOfPocketPayment {
     id: number;
@@ -47,6 +50,7 @@ export default function PaymentSettlement() {
     const [processing, setProcessing] = useState(false);
     const [admission, setAdmission] = useState<EmergencyBooking | null>(null);
     const [payment, setPayment] = useState<OutOfPocketPayment | null>(null);
+    const [selectedMethod, setSelectedMethod] = useState<'all' | 'card' | 'upi'>('all');
 
     useEffect(() => {
         if (admissionId) {
@@ -91,25 +95,48 @@ export default function PaymentSettlement() {
             const orderData: any = orderResponse.data;
             const { order_id, key_id, amount } = orderData;
 
-            // TODO: Integrate Razorpay React Native SDK
-            // For now, just show success message
-            Alert.alert(
-                'Payment Gateway',
-                `Razorpay integration pending.\nOrder ID: ${order_id}\nAmount: ₹${amount / 100}`,
-                [
-                    {
-                        text: 'OK',
-                        onPress: () => {
-                            // Simulate successful payment for demo
-                            // verifyPayment(order_id, 'demo_payment_id', 'demo_signature');
-                        },
-                    },
-                ]
-            );
+            // Get user details for prefill
+            const user = await authService.getStoredUser();
+
+            const razorpayOptions = {
+                key: RAZORPAY_KEY_ID,
+                amount: amount,
+                currency: 'INR',
+                order_id: order_id,
+                name: 'Doklink Healthcare',
+                description: `Payment for ${admission?.hospital_name || 'Hospital'} admission`,
+                prefill: {
+                    name: user?.first_name || user?.username || '',
+                    email: user?.email || '',
+                    contact: user?.profile?.phone_number || '',
+                },
+                theme: {
+                    color: '#3b82f6',
+                },
+            };
+
+            const onSuccess = (response: any) => {
+                verifyPayment(response.razorpay_order_id, response.razorpay_payment_id, response.razorpay_signature);
+            };
+
+            const onError = (error: any) => {
+                console.error('Payment error:', error);
+                Alert.alert('Payment Failed', error.description || 'Payment was cancelled or failed');
+                setProcessing(false);
+            };
+
+            // Open Razorpay checkout based on selected method
+            if (selectedMethod === 'upi') {
+                await razorpayService.openUPICheckout(razorpayOptions, onSuccess, onError);
+            } else if (selectedMethod === 'card') {
+                await razorpayService.openCardCheckout(razorpayOptions, onSuccess, onError);
+            } else {
+                // All payment methods (Card, UPI, Net Banking, Wallets)
+                await razorpayService.openCheckout(razorpayOptions, onSuccess, onError);
+            }
         } catch (error: any) {
             console.error('Error initiating payment:', error);
             Alert.alert('Error', error.response?.data?.error || 'Failed to initiate payment');
-        } finally {
             setProcessing(false);
         }
     };
@@ -306,6 +333,77 @@ export default function PaymentSettlement() {
                         </View>
                     )}
                 </View>
+
+                {/* Payment Method Selection */}
+                {payment.payment_status === 'pending' && (
+                    <View style={styles.card}>
+                        <Text style={styles.cardTitle}>Select Payment Method</Text>
+                        <View style={styles.paymentMethodContainer}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.methodButton,
+                                    selectedMethod === 'all' && styles.methodButtonActive
+                                ]}
+                                onPress={() => setSelectedMethod('all')}
+                            >
+                                <Ionicons
+                                    name="wallet"
+                                    size={24}
+                                    color={selectedMethod === 'all' ? '#3b82f6' : '#6b7280'}
+                                />
+                                <Text style={[
+                                    styles.methodText,
+                                    selectedMethod === 'all' && styles.methodTextActive
+                                ]}>
+                                    All Methods
+                                </Text>
+                                <Text style={styles.methodSubtext}>Card, UPI, Net Banking, Wallet</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.methodButton,
+                                    selectedMethod === 'upi' && styles.methodButtonActive
+                                ]}
+                                onPress={() => setSelectedMethod('upi')}
+                            >
+                                <Ionicons
+                                    name="phone-portrait"
+                                    size={24}
+                                    color={selectedMethod === 'upi' ? '#3b82f6' : '#6b7280'}
+                                />
+                                <Text style={[
+                                    styles.methodText,
+                                    selectedMethod === 'upi' && styles.methodTextActive
+                                ]}>
+                                    UPI Only
+                                </Text>
+                                <Text style={styles.methodSubtext}>PhonePe, GPay, Paytm</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.methodButton,
+                                    selectedMethod === 'card' && styles.methodButtonActive
+                                ]}
+                                onPress={() => setSelectedMethod('card')}
+                            >
+                                <Ionicons
+                                    name="card"
+                                    size={24}
+                                    color={selectedMethod === 'card' ? '#3b82f6' : '#6b7280'}
+                                />
+                                <Text style={[
+                                    styles.methodText,
+                                    selectedMethod === 'card' && styles.methodTextActive
+                                ]}>
+                                    Card Only
+                                </Text>
+                                <Text style={styles.methodSubtext}>Credit/Debit Card</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
 
                 {/* Pay Now Button */}
                 {payment.payment_status === 'pending' && (
@@ -513,5 +611,33 @@ const styles = StyleSheet.create({
         color: '#10b981',
         fontSize: 16,
         fontWeight: 'bold',
+    },
+    paymentMethodContainer: {
+        gap: 12,
+    },
+    methodButton: {
+        borderWidth: 2,
+        borderColor: '#e5e7eb',
+        borderRadius: 12,
+        padding: 16,
+        backgroundColor: '#ffffff',
+    },
+    methodButtonActive: {
+        borderColor: '#3b82f6',
+        backgroundColor: '#eff6ff',
+    },
+    methodText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#111827',
+        marginTop: 8,
+    },
+    methodTextActive: {
+        color: '#3b82f6',
+    },
+    methodSubtext: {
+        fontSize: 12,
+        color: '#6b7280',
+        marginTop: 4,
     },
 });
