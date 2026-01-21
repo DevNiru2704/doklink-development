@@ -1182,3 +1182,426 @@ class OutOfPocketPaymentViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(payment)
         return Response(serializer.data)
 
+
+# =====================
+# PLANNED ADMISSION VIEWS (Phase 2 - Section 7)
+# =====================
+
+from .models import PlannedAdmission, MedicalProcedure
+from .serializers import (
+    PlannedAdmissionSerializer, CreatePlannedAdmissionSerializer,
+    UpdatePlannedAdmissionSerializer, UpdatePlannedAdmissionStatusSerializer,
+    UpdateChecklistItemSerializer, MedicalProcedureSerializer, AITriageInputSerializer
+)
+
+
+class MedicalProcedureViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for browsing medical procedures catalog
+    
+    Endpoints:
+    - GET /api/v1/healthcare/procedures/ - List all procedures
+    - GET /api/v1/healthcare/procedures/{id}/ - Get procedure details
+    - GET /api/v1/healthcare/procedures/by_category/?category=cardiac - Filter by category
+    - GET /api/v1/healthcare/procedures/search/?q=knee - Search procedures
+    """
+    queryset = MedicalProcedure.objects.filter(is_active=True)
+    serializer_class = MedicalProcedureSerializer
+    permission_classes = [IsAuthenticated]
+    
+    @action(detail=False, methods=['get'])
+    def by_category(self, request):
+        """Get procedures filtered by category"""
+        category = request.query_params.get('category')
+        if not category:
+            return Response(
+                {'error': 'category parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        procedures = self.queryset.filter(category=category)
+        serializer = self.get_serializer(procedures, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def search(self, request):
+        """Search procedures by name or description"""
+        query = request.query_params.get('q', '')
+        if len(query) < 2:
+            return Response(
+                {'error': 'Search query must be at least 2 characters'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        from django.db.models import Q
+        procedures = self.queryset.filter(
+            Q(name__icontains=query) | Q(description__icontains=query)
+        )[:20]  # Limit to 20 results
+        
+        serializer = self.get_serializer(procedures, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def categories(self, request):
+        """Get list of procedure categories with counts"""
+        from django.db.models import Count
+        categories = self.queryset.values('category').annotate(
+            count=Count('id')
+        ).order_by('category')
+        
+        category_list = []
+        for cat in categories:
+            display_name = dict(PlannedAdmission.PROCEDURE_CATEGORY_CHOICES).get(cat['category'], cat['category'])
+            category_list.append({
+                'value': cat['category'],
+                'label': display_name,
+                'count': cat['count']
+            })
+        
+        return Response(category_list)
+
+
+class PlannedAdmissionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing planned admission requests
+    
+    Endpoints:
+    - GET /api/v1/healthcare/planned-admissions/ - List user's planned admissions
+    - POST /api/v1/healthcare/planned-admissions/ - Create new planned admission
+    - GET /api/v1/healthcare/planned-admissions/{id}/ - Get admission details
+    - PUT /api/v1/healthcare/planned-admissions/{id}/ - Update admission
+    - DELETE /api/v1/healthcare/planned-admissions/{id}/ - Cancel admission
+    - GET /api/v1/healthcare/planned-admissions/active/ - Get active admissions
+    - POST /api/v1/healthcare/planned-admissions/{id}/update_status/ - Update status
+    - POST /api/v1/healthcare/planned-admissions/{id}/update_checklist/ - Update checklist item
+    - POST /api/v1/healthcare/planned-admissions/ai_triage/ - Get AI triage (dummy for now)
+    """
+    serializer_class = PlannedAdmissionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return PlannedAdmission.objects.filter(
+            user=self.request.user
+        ).select_related('hospital', 'doctor')
+    
+    def create(self, request):
+        """Create a new planned admission request"""
+        serializer = CreatePlannedAdmissionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        
+        # Get hospital if provided
+        hospital = None
+        if data.get('hospital_id'):
+            hospital = Hospital.objects.filter(id=data['hospital_id']).first()
+            if not hospital:
+                return Response(
+                    {'error': 'Hospital not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Create planned admission
+        admission = PlannedAdmission.objects.create(
+            user=request.user,
+            hospital=hospital,
+            admission_type=data['admission_type'],
+            procedure_category=data.get('procedure_category', 'other'),
+            procedure_name=data.get('procedure_name', ''),
+            symptoms=data.get('symptoms', ''),
+            preferred_date=data.get('preferred_date'),
+            alternate_date=data.get('alternate_date'),
+            flexible_dates=data.get('flexible_dates', True),
+            patient_notes=data.get('patient_notes', ''),
+            # Initialize empty checklist
+            pre_admission_checklist={
+                'medical_tests': [],
+                'documents': [],
+                'medications': [],
+                'instructions': []
+            }
+        )
+        
+        # Generate dummy AI triage result (placeholder for future AI)
+        admission.ai_triage_result = self._generate_dummy_triage(data)
+        admission.ai_recommended_urgency = admission.ai_triage_result.get('urgency', 'moderate')
+        admission.ai_confidence_score = admission.ai_triage_result.get('confidence', 85)
+        admission.save()
+        
+        response_serializer = PlannedAdmissionSerializer(admission)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+    
+    def _generate_dummy_triage(self, data):
+        """Generate dummy AI triage result (placeholder for future AI integration)"""
+        import random
+        
+        symptoms = data.get('symptoms', '').lower()
+        urgency = 'moderate'
+        confidence = random.randint(75, 95)
+        
+        # Simple keyword-based urgency (placeholder logic)
+        urgent_keywords = ['severe', 'chest pain', 'difficulty breathing', 'bleeding', 'unconscious']
+        critical_keywords = ['heart attack', 'stroke', 'trauma', 'emergency']
+        low_keywords = ['routine', 'checkup', 'follow-up', 'minor']
+        
+        for keyword in critical_keywords:
+            if keyword in symptoms:
+                urgency = 'critical'
+                break
+        for keyword in urgent_keywords:
+            if keyword in symptoms:
+                urgency = 'urgent'
+                break
+        for keyword in low_keywords:
+            if keyword in symptoms:
+                urgency = 'low'
+                break
+        
+        return {
+            'urgency': urgency,
+            'confidence': confidence,
+            'recommendation': f'Based on your symptoms, we recommend {"immediate attention" if urgency in ["critical", "urgent"] else "scheduling an appointment within the next week"}.',
+            'findings': [
+                'Symptoms analyzed against medical guidelines',
+                f'Urgency level: {urgency.upper()}',
+                'Hospital admission recommended' if urgency != 'low' else 'Outpatient care may be sufficient'
+            ],
+            'disclaimer': 'This is an AI-assisted recommendation. Please consult with a healthcare professional for proper diagnosis.'
+        }
+    
+    def update(self, request, pk=None):
+        """Update a planned admission"""
+        admission = self.get_object()
+        
+        if admission.status not in ['pending', 'confirmed']:
+            return Response(
+                {'error': 'Cannot modify admission after it has been scheduled'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = UpdatePlannedAdmissionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        
+        # Update hospital if provided
+        if 'hospital_id' in data:
+            if data['hospital_id']:
+                hospital = Hospital.objects.filter(id=data['hospital_id']).first()
+                if not hospital:
+                    return Response(
+                        {'error': 'Hospital not found'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+                admission.hospital = hospital
+            else:
+                admission.hospital = None
+        
+        # Update other fields
+        for field in ['procedure_category', 'procedure_name', 'symptoms', 
+                      'preferred_date', 'alternate_date', 'flexible_dates', 'patient_notes']:
+            if field in data:
+                setattr(admission, field, data[field])
+        
+        admission.save()
+        
+        response_serializer = PlannedAdmissionSerializer(admission)
+        return Response(response_serializer.data)
+    
+    def destroy(self, request, pk=None):
+        """Cancel a planned admission"""
+        admission = self.get_object()
+        
+        if admission.status in ['admitted', 'discharged']:
+            return Response(
+                {'error': 'Cannot cancel admission that is already completed'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        cancellation_reason = request.data.get('cancellation_reason', 'Cancelled by patient')
+        admission.status = 'cancelled'
+        admission.cancellation_reason = cancellation_reason
+        admission.save()
+        
+        return Response({'message': 'Admission cancelled successfully'})
+    
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Get active planned admissions (not cancelled/discharged)"""
+        active_admissions = self.get_queryset().exclude(
+            status__in=['cancelled', 'discharged']
+        )
+        serializer = self.get_serializer(active_admissions, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def update_status(self, request, pk=None):
+        """Update admission status (typically by hospital)"""
+        admission = self.get_object()
+        
+        serializer = UpdatePlannedAdmissionStatusSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        new_status = data['status']
+        
+        # Validate status transitions
+        valid_transitions = {
+            'pending': ['confirmed', 'cancelled'],
+            'confirmed': ['scheduled', 'cancelled'],
+            'scheduled': ['pre_admission', 'cancelled'],
+            'pre_admission': ['admitted', 'cancelled'],
+            'admitted': ['discharged'],
+            'discharged': [],
+            'cancelled': [],
+        }
+        
+        if new_status not in valid_transitions.get(admission.status, []):
+            return Response(
+                {'error': f'Cannot transition from {admission.status} to {new_status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        admission.status = new_status
+        
+        if new_status == 'cancelled':
+            admission.cancellation_reason = data.get('cancellation_reason', '')
+        
+        if data.get('doctor_notes'):
+            admission.doctor_notes = data['doctor_notes']
+        
+        if data.get('scheduled_date'):
+            admission.scheduled_date = data['scheduled_date']
+        
+        if data.get('scheduled_time'):
+            admission.scheduled_time = data['scheduled_time']
+        
+        admission.save()
+        
+        response_serializer = PlannedAdmissionSerializer(admission)
+        return Response(response_serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def update_checklist(self, request, pk=None):
+        """Update a single checklist item"""
+        admission = self.get_object()
+        
+        serializer = UpdateChecklistItemSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        category = data['category']
+        item_index = data['item_index']
+        field = data['field']
+        value = data['value']
+        
+        checklist = admission.pre_admission_checklist or {}
+        
+        if category not in checklist:
+            return Response(
+                {'error': f'Category {category} not found in checklist'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if item_index < 0 or item_index >= len(checklist[category]):
+            return Response(
+                {'error': 'Invalid item index'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        checklist[category][item_index][field] = value
+        admission.pre_admission_checklist = checklist
+        admission.save()
+        
+        return Response({
+            'message': 'Checklist updated successfully',
+            'checklist': checklist,
+            'completion_percentage': admission.checklist_completion_percentage
+        })
+    
+    @action(detail=False, methods=['post'])
+    def ai_triage(self, request):
+        """
+        Get AI triage analysis (dummy implementation for now)
+        In the future, this will connect to actual AI/ML model
+        """
+        serializer = AITriageInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        triage_result = self._generate_dummy_triage(data)
+        
+        # If admission_id provided, update that admission
+        if data.get('admission_id'):
+            try:
+                admission = PlannedAdmission.objects.get(
+                    id=data['admission_id'],
+                    user=request.user
+                )
+                admission.ai_triage_result = triage_result
+                admission.ai_recommended_urgency = triage_result['urgency']
+                admission.ai_confidence_score = triage_result['confidence']
+                admission.save()
+            except PlannedAdmission.DoesNotExist:
+                pass
+        
+        return Response(triage_result)
+    
+    def _generate_dummy_triage(self, data):
+        """Reusable dummy triage generator"""
+        import random
+        
+        symptoms = data.get('symptoms', '').lower()
+        urgency = 'moderate'
+        confidence = random.randint(75, 95)
+        
+        urgent_keywords = ['severe', 'chest pain', 'difficulty breathing', 'bleeding', 'unconscious']
+        critical_keywords = ['heart attack', 'stroke', 'trauma', 'emergency']
+        low_keywords = ['routine', 'checkup', 'follow-up', 'minor']
+        
+        for keyword in critical_keywords:
+            if keyword in symptoms:
+                urgency = 'critical'
+                confidence = random.randint(88, 98)
+                break
+        for keyword in urgent_keywords:
+            if keyword in symptoms:
+                urgency = 'urgent'
+                confidence = random.randint(82, 95)
+                break
+        for keyword in low_keywords:
+            if keyword in symptoms:
+                urgency = 'low'
+                confidence = random.randint(80, 92)
+                break
+        
+        urgency_messages = {
+            'critical': 'Immediate medical attention recommended. Please proceed to the nearest emergency room.',
+            'urgent': 'Medical attention advised within 24-48 hours. Schedule an appointment as soon as possible.',
+            'moderate': 'Schedule an appointment within the next week. Monitor your symptoms.',
+            'low': 'Routine care recommended. Consider scheduling a regular check-up.'
+        }
+        
+        return {
+            'urgency': urgency,
+            'confidence': confidence,
+            'recommendation': urgency_messages[urgency],
+            'findings': [
+                'Symptoms analyzed using clinical guidelines',
+                f'Urgency classification: {urgency.upper()}',
+                f'Confidence level: {confidence}%',
+                'AI analysis completed successfully'
+            ],
+            'next_steps': [
+                'Review recommended hospitals',
+                'Compare costs and availability',
+                'Schedule your preferred date',
+                'Complete pre-admission checklist'
+            ],
+            'disclaimer': 'This is an AI-assisted preliminary assessment. It is not a medical diagnosis. Please consult with a qualified healthcare professional for proper evaluation and treatment.'
+        }

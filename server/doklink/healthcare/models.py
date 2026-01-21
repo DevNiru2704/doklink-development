@@ -507,3 +507,164 @@ class OutOfPocketPayment(models.Model):
     
     def __str__(self):
         return f"Payment for {self.admission} - ₹{self.out_of_pocket} ({self.payment_status})"
+
+
+class PlannedAdmission(models.Model):
+    """Planned admission requests for non-emergency hospital visits (Phase 2 - Section 7)"""
+    
+    ADMISSION_TYPE_CHOICES = [
+        ('surgery', 'Surgery/Procedure'),
+        ('treatment', 'Medical Treatment'),
+        ('diagnostic', 'Diagnostic Tests'),
+        ('specialist', 'Specialist Care'),
+        ('other', 'Other'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('scheduled', 'Scheduled'),
+        ('pre_admission', 'Pre-Admission'),
+        ('admitted', 'Admitted'),
+        ('discharged', 'Discharged'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    PROCEDURE_CATEGORY_CHOICES = [
+        ('cardiac', 'Cardiac Procedures'),
+        ('orthopedic', 'Orthopedic'),
+        ('general_surgery', 'General Surgery'),
+        ('neurology', 'Neurology'),
+        ('gastroenterology', 'Gastroenterology'),
+        ('urology', 'Urology'),
+        ('gynecology', 'Gynecology'),
+        ('oncology', 'Oncology'),
+        ('ent', 'ENT'),
+        ('ophthalmology', 'Ophthalmology'),
+        ('dermatology', 'Dermatology'),
+        ('diagnostic', 'Diagnostic'),
+        ('other', 'Other'),
+    ]
+    
+    # Core relationships
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='planned_admissions')
+    hospital = models.ForeignKey(Hospital, on_delete=models.SET_NULL, null=True, blank=True, related_name='planned_admissions')
+    doctor = models.ForeignKey(Doctor, on_delete=models.SET_NULL, null=True, blank=True, related_name='planned_admissions')
+    
+    # Admission details
+    admission_type = models.CharField(max_length=30, choices=ADMISSION_TYPE_CHOICES, default='surgery')
+    procedure_category = models.CharField(max_length=30, choices=PROCEDURE_CATEGORY_CHOICES, default='other')
+    procedure_name = models.CharField(max_length=300, blank=True, help_text="Specific procedure or treatment name")
+    symptoms = models.TextField(blank=True, help_text="Patient's symptoms description")
+    
+    # Scheduling
+    preferred_date = models.DateField(null=True, blank=True, help_text="Preferred admission date")
+    alternate_date = models.DateField(null=True, blank=True, help_text="Alternative admission date")
+    flexible_dates = models.BooleanField(default=True, help_text="Whether patient is flexible with dates")
+    scheduled_date = models.DateField(null=True, blank=True, help_text="Confirmed scheduled date")
+    scheduled_time = models.TimeField(null=True, blank=True, help_text="Confirmed scheduled time")
+    
+    # Status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Cost estimation
+    estimated_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Estimated total cost")
+    estimated_insurance_coverage = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Estimated insurance coverage")
+    estimated_out_of_pocket = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Estimated out-of-pocket cost")
+    
+    # AI Triage (placeholder for future AI integration)
+    ai_triage_result = models.JSONField(null=True, blank=True, help_text="AI triage analysis result")
+    ai_recommended_urgency = models.CharField(max_length=20, blank=True, help_text="AI recommended urgency level: critical, urgent, moderate, low")
+    ai_confidence_score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="AI confidence percentage (0-100)")
+    
+    # Pre-admission checklist (JSON structure)
+    pre_admission_checklist = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="""Pre-admission checklist items. Example:
+        {
+            "medical_tests": [{"name": "Blood Test", "completed": false, "due_date": "2026-01-25"}],
+            "documents": [{"name": "Insurance Card", "uploaded": true}],
+            "medications": [{"name": "Stop Aspirin", "instruction": "Stop 7 days before", "acknowledged": false}],
+            "instructions": [{"name": "Fasting", "description": "No food 12 hours before", "acknowledged": false}]
+        }"""
+    )
+    
+    # Additional notes
+    doctor_notes = models.TextField(blank=True, help_text="Notes from doctor/hospital")
+    patient_notes = models.TextField(blank=True, help_text="Additional notes from patient")
+    cancellation_reason = models.TextField(blank=True, help_text="Reason for cancellation if cancelled")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Planned Admission"
+        verbose_name_plural = "Planned Admissions"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['hospital', 'status']),
+            models.Index(fields=['preferred_date']),
+            models.Index(fields=['scheduled_date']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        procedure = self.procedure_name or self.get_admission_type_display()
+        hospital_name = self.hospital.name if self.hospital else "No hospital selected"
+        return f"{procedure} - {self.user.username} at {hospital_name}"
+    
+    @property
+    def checklist_completion_percentage(self):
+        """Calculate checklist completion percentage"""
+        if not self.pre_admission_checklist:
+            return 0
+        
+        total_items = 0
+        completed_items = 0
+        
+        for category in ['medical_tests', 'documents', 'medications', 'instructions']:
+            items = self.pre_admission_checklist.get(category, [])
+            total_items += len(items)
+            for item in items:
+                if item.get('completed') or item.get('uploaded') or item.get('acknowledged'):
+                    completed_items += 1
+        
+        if total_items == 0:
+            return 100  # No items means checklist complete
+        
+        return round((completed_items / total_items) * 100)
+
+
+class MedicalProcedure(models.Model):
+    """Standard medical procedures catalog for procedure selection"""
+    
+    CATEGORY_CHOICES = PlannedAdmission.PROCEDURE_CATEGORY_CHOICES
+    
+    name = models.CharField(max_length=300, help_text="Procedure name")
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
+    description = models.TextField(blank=True, help_text="Description of the procedure")
+    typical_duration = models.CharField(max_length=100, blank=True, help_text="Typical duration (e.g., '2-3 hours')")
+    recovery_time = models.CharField(max_length=100, blank=True, help_text="Typical recovery time (e.g., '1-2 weeks')")
+    estimated_cost_min = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Minimum estimated cost")
+    estimated_cost_max = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Maximum estimated cost")
+    requires_overnight_stay = models.BooleanField(default=True, help_text="Whether procedure typically requires overnight stay")
+    pre_requirements = models.TextField(blank=True, help_text="Pre-procedure requirements (fasting, tests, etc.)")
+    is_active = models.BooleanField(default=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Medical Procedure"
+        verbose_name_plural = "Medical Procedures"
+        ordering = ['category', 'name']
+        indexes = [
+            models.Index(fields=['category']),
+            models.Index(fields=['name']),
+            models.Index(fields=['is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_category_display()})"

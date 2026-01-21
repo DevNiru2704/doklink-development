@@ -101,11 +101,7 @@ export default function Home() {
   };
 
   const handlePlannedAdmission = () => {
-    Alert.alert(
-      'Coming Soon',
-      'Planned admission feature will be available soon.',
-      [{ text: 'OK' }]
-    );
+    router.push('/pages/planned/PlannedAdmission');
   };
 
   const handleViewActiveBooking = () => {

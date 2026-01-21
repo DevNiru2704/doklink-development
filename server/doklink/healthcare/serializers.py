@@ -414,3 +414,138 @@ class VerifyRazorpayPaymentSerializer(serializers.Serializer):
     razorpay_payment_id = serializers.CharField(required=True)
     razorpay_signature = serializers.CharField(required=True)
     payment_method = serializers.CharField(required=False, allow_blank=True)
+
+
+# =====================
+# PLANNED ADMISSION SERIALIZERS (Phase 2 - Section 7)
+# =====================
+
+from .models import PlannedAdmission, MedicalProcedure
+
+
+class MedicalProcedureSerializer(serializers.ModelSerializer):
+    """Serializer for Medical Procedure catalog"""
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    cost_range = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = MedicalProcedure
+        fields = [
+            'id', 'name', 'category', 'category_display', 'description',
+            'typical_duration', 'recovery_time', 'estimated_cost_min', 
+            'estimated_cost_max', 'cost_range', 'requires_overnight_stay',
+            'pre_requirements', 'is_active'
+        ]
+    
+    def get_cost_range(self, obj):
+        """Return formatted cost range"""
+        if obj.estimated_cost_min and obj.estimated_cost_max:
+            return f"₹{int(obj.estimated_cost_min):,} - ₹{int(obj.estimated_cost_max):,}"
+        elif obj.estimated_cost_min:
+            return f"From ₹{int(obj.estimated_cost_min):,}"
+        return "Cost varies"
+
+
+class PlannedAdmissionSerializer(serializers.ModelSerializer):
+    """Serializer for Planned Admission"""
+    hospital = HospitalSerializer(read_only=True)
+    hospital_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    doctor_name = serializers.SerializerMethodField(read_only=True)
+    admission_type_display = serializers.CharField(source='get_admission_type_display', read_only=True)
+    procedure_category_display = serializers.CharField(source='get_procedure_category_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    checklist_completion = serializers.ReadOnlyField(source='checklist_completion_percentage')
+    user_name = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = PlannedAdmission
+        fields = [
+            'id', 'user_name', 'hospital', 'hospital_id', 'doctor_name',
+            'admission_type', 'admission_type_display', 
+            'procedure_category', 'procedure_category_display', 'procedure_name',
+            'symptoms', 'preferred_date', 'alternate_date', 'flexible_dates',
+            'scheduled_date', 'scheduled_time', 'status', 'status_display',
+            'estimated_cost', 'estimated_insurance_coverage', 'estimated_out_of_pocket',
+            'ai_triage_result', 'ai_recommended_urgency', 'ai_confidence_score',
+            'pre_admission_checklist', 'checklist_completion',
+            'doctor_notes', 'patient_notes', 'cancellation_reason',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'status', 'scheduled_date', 'scheduled_time', 
+            'ai_triage_result', 'ai_recommended_urgency', 'ai_confidence_score',
+            'doctor_notes', 'created_at', 'updated_at'
+        ]
+    
+    def get_user_name(self, obj):
+        return obj.user.get_full_name() or obj.user.username
+    
+    def get_doctor_name(self, obj):
+        if obj.doctor:
+            return f"Dr. {obj.doctor.name}"
+        return None
+
+
+class CreatePlannedAdmissionSerializer(serializers.Serializer):
+    """Serializer for creating a new planned admission request"""
+    admission_type = serializers.ChoiceField(choices=PlannedAdmission.ADMISSION_TYPE_CHOICES, required=True)
+    procedure_category = serializers.ChoiceField(choices=PlannedAdmission.PROCEDURE_CATEGORY_CHOICES, required=False, default='other')
+    procedure_name = serializers.CharField(required=False, allow_blank=True, max_length=300)
+    symptoms = serializers.CharField(required=False, allow_blank=True)
+    hospital_id = serializers.IntegerField(required=False, allow_null=True)
+    preferred_date = serializers.DateField(required=False, allow_null=True)
+    alternate_date = serializers.DateField(required=False, allow_null=True)
+    flexible_dates = serializers.BooleanField(required=False, default=True)
+    patient_notes = serializers.CharField(required=False, allow_blank=True)
+    
+    def validate_preferred_date(self, value):
+        """Ensure preferred date is in the future"""
+        from datetime import date
+        if value and value < date.today():
+            raise serializers.ValidationError("Preferred date must be in the future")
+        return value
+    
+    def validate_alternate_date(self, value):
+        """Ensure alternate date is in the future"""
+        from datetime import date
+        if value and value < date.today():
+            raise serializers.ValidationError("Alternate date must be in the future")
+        return value
+
+
+class UpdatePlannedAdmissionSerializer(serializers.Serializer):
+    """Serializer for updating a planned admission"""
+    hospital_id = serializers.IntegerField(required=False, allow_null=True)
+    procedure_category = serializers.ChoiceField(choices=PlannedAdmission.PROCEDURE_CATEGORY_CHOICES, required=False)
+    procedure_name = serializers.CharField(required=False, allow_blank=True, max_length=300)
+    symptoms = serializers.CharField(required=False, allow_blank=True)
+    preferred_date = serializers.DateField(required=False, allow_null=True)
+    alternate_date = serializers.DateField(required=False, allow_null=True)
+    flexible_dates = serializers.BooleanField(required=False)
+    patient_notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class UpdatePlannedAdmissionStatusSerializer(serializers.Serializer):
+    """Serializer for updating planned admission status"""
+    status = serializers.ChoiceField(choices=PlannedAdmission.STATUS_CHOICES, required=True)
+    cancellation_reason = serializers.CharField(required=False, allow_blank=True)
+    doctor_notes = serializers.CharField(required=False, allow_blank=True)
+    scheduled_date = serializers.DateField(required=False, allow_null=True)
+    scheduled_time = serializers.TimeField(required=False, allow_null=True)
+
+
+class UpdateChecklistItemSerializer(serializers.Serializer):
+    """Serializer for updating a checklist item"""
+    category = serializers.ChoiceField(choices=['medical_tests', 'documents', 'medications', 'instructions'], required=True)
+    item_index = serializers.IntegerField(required=True)
+    field = serializers.ChoiceField(choices=['completed', 'uploaded', 'acknowledged'], required=True)
+    value = serializers.BooleanField(required=True)
+
+
+class AITriageInputSerializer(serializers.Serializer):
+    """Serializer for AI triage analysis input (placeholder for future AI)"""
+    symptoms = serializers.CharField(required=True)
+    medical_history = serializers.CharField(required=False, allow_blank=True)
+    current_medications = serializers.CharField(required=False, allow_blank=True)
+    vital_signs = serializers.DictField(required=False, allow_null=True)
+    admission_id = serializers.IntegerField(required=False, allow_null=True)

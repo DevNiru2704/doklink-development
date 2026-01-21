@@ -7,7 +7,8 @@ from .views import (
     get_emergency_booking, update_booking_status, get_active_booking,
     get_emergency_bookings, InsuranceProviderViewSet, HospitalInsuranceViewSet,
     get_hospital_accepted_insurances, verify_insurance_for_hospital,
-    DailyExpenseViewSet, OutOfPocketPaymentViewSet
+    DailyExpenseViewSet, OutOfPocketPaymentViewSet,
+    PlannedAdmissionViewSet, MedicalProcedureViewSet
 )
 
 router = DefaultRouter()
@@ -22,6 +23,8 @@ router.register(r'insurance-providers', InsuranceProviderViewSet, basename='insu
 router.register(r'hospital-insurances', HospitalInsuranceViewSet, basename='hospital-insurance')
 router.register(r'expenses', DailyExpenseViewSet, basename='daily-expense')
 router.register(r'out-of-pocket-payments', OutOfPocketPaymentViewSet, basename='out-of-pocket-payment')
+router.register(r'planned-admissions', PlannedAdmissionViewSet, basename='planned-admission')
+router.register(r'procedures', MedicalProcedureViewSet, basename='medical-procedure')
 
 urlpatterns = [
     path('', include(router.urls)),
