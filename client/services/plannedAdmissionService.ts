@@ -132,7 +132,7 @@ const plannedAdmissionService = {
      * Get all procedure categories
      */
     async getProcedureCategories(): Promise<ProcedureCategory[]> {
-        const response = await apiClient.get('/healthcare/procedures/categories/');
+        const response = await apiClient.get<ProcedureCategory[]>('/healthcare/procedures/categories/');
         return response.data;
     },
 
@@ -140,7 +140,7 @@ const plannedAdmissionService = {
      * Get procedures by category
      */
     async getProceduresByCategory(category: string): Promise<MedicalProcedure[]> {
-        const response = await apiClient.get('/healthcare/procedures/by_category/', {
+        const response = await apiClient.get<MedicalProcedure[]>('/healthcare/procedures/by_category/', {
             params: { category }
         });
         return response.data;
@@ -150,7 +150,7 @@ const plannedAdmissionService = {
      * Search procedures
      */
     async searchProcedures(query: string): Promise<MedicalProcedure[]> {
-        const response = await apiClient.get('/healthcare/procedures/search/', {
+        const response = await apiClient.get<MedicalProcedure[]>('/healthcare/procedures/search/', {
             params: { q: query }
         });
         return response.data;
@@ -160,7 +160,7 @@ const plannedAdmissionService = {
      * Get all procedures
      */
     async getAllProcedures(): Promise<MedicalProcedure[]> {
-        const response = await apiClient.get('/healthcare/procedures/');
+        const response = await apiClient.get<MedicalProcedure[]>('/healthcare/procedures/');
         return response.data;
     },
 
@@ -168,7 +168,7 @@ const plannedAdmissionService = {
      * Create a new planned admission
      */
     async createPlannedAdmission(data: CreatePlannedAdmissionData): Promise<PlannedAdmission> {
-        const response = await apiClient.post('/healthcare/planned-admissions/', data);
+        const response = await apiClient.post<PlannedAdmission>('/healthcare/planned-admissions/', data);
         return response.data;
     },
 
@@ -176,7 +176,7 @@ const plannedAdmissionService = {
      * Get all planned admissions for user
      */
     async getPlannedAdmissions(): Promise<PlannedAdmission[]> {
-        const response = await apiClient.get('/healthcare/planned-admissions/');
+        const response = await apiClient.get<PlannedAdmission[]>('/healthcare/planned-admissions/');
         return response.data;
     },
 
@@ -184,7 +184,7 @@ const plannedAdmissionService = {
      * Get active planned admissions
      */
     async getActivePlannedAdmissions(): Promise<PlannedAdmission[]> {
-        const response = await apiClient.get('/healthcare/planned-admissions/active/');
+        const response = await apiClient.get<PlannedAdmission[]>('/healthcare/planned-admissions/active/');
         return response.data;
     },
 
@@ -192,7 +192,7 @@ const plannedAdmissionService = {
      * Get a specific planned admission
      */
     async getPlannedAdmission(id: number): Promise<PlannedAdmission> {
-        const response = await apiClient.get(`/healthcare/planned-admissions/${id}/`);
+        const response = await apiClient.get<PlannedAdmission>(`/healthcare/planned-admissions/${id}/`);
         return response.data;
     },
 
@@ -200,7 +200,7 @@ const plannedAdmissionService = {
      * Update a planned admission
      */
     async updatePlannedAdmission(id: number, data: UpdatePlannedAdmissionData): Promise<PlannedAdmission> {
-        const response = await apiClient.put(`/healthcare/planned-admissions/${id}/`, data);
+        const response = await apiClient.put<PlannedAdmission>(`/healthcare/planned-admissions/${id}/`, data);
         return response.data;
     },
 
@@ -208,8 +208,8 @@ const plannedAdmissionService = {
      * Cancel a planned admission
      */
     async cancelPlannedAdmission(id: number, reason?: string): Promise<void> {
-        await apiClient.delete(`/healthcare/planned-admissions/${id}/`, {
-            data: { cancellation_reason: reason }
+        await apiClient.post(`/healthcare/planned-admissions/${id}/cancel/`, {
+            cancellation_reason: reason
         });
     },
 
@@ -223,12 +223,15 @@ const plannedAdmissionService = {
         field: 'completed' | 'uploaded' | 'acknowledged',
         value: boolean
     ): Promise<{ message: string; checklist: PreAdmissionChecklist; completion_percentage: number }> {
-        const response = await apiClient.post(`/healthcare/planned-admissions/${admissionId}/update_checklist/`, {
-            category,
-            item_index: itemIndex,
-            field,
-            value
-        });
+        const response = await apiClient.post<{ message: string; checklist: PreAdmissionChecklist; completion_percentage: number }>(
+            `/healthcare/planned-admissions/${admissionId}/update_checklist/`,
+            {
+                category,
+                item_index: itemIndex,
+                field,
+                value
+            }
+        );
         return response.data;
     },
 
@@ -236,7 +239,7 @@ const plannedAdmissionService = {
      * Get AI triage analysis
      */
     async getAITriage(symptoms: string, medicalHistory?: string, currentMedications?: string, admissionId?: number): Promise<AITriageResult> {
-        const response = await apiClient.post('/healthcare/planned-admissions/ai_triage/', {
+        const response = await apiClient.post<AITriageResult>('/healthcare/planned-admissions/ai_triage/', {
             symptoms,
             medical_history: medicalHistory,
             current_medications: currentMedications,
@@ -252,8 +255,8 @@ const plannedAdmissionService = {
         // Round to 6 decimal places (backend serializer limit)
         const lat = Math.round(latitude * 1000000) / 1000000;
         const lng = Math.round(longitude * 1000000) / 1000000;
-        
-        const response = await apiClient.get('/healthcare/emergency/hospitals/nearby/', {
+
+        const response = await apiClient.get<{ hospitals?: Hospital[] } | Hospital[]>('/healthcare/emergency/hospitals/nearby/', {
             params: {
                 latitude: lat,
                 longitude: lng,
@@ -261,7 +264,11 @@ const plannedAdmissionService = {
                 show_all: true
             }
         });
-        return response.data.hospitals || response.data;
+        const data = response.data;
+        if (Array.isArray(data)) {
+            return data;
+        }
+        return data.hospitals || [];
     }
 };
 
