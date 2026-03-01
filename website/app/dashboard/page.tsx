@@ -68,7 +68,7 @@ export default function Dashboard() {
       router.push("/login");
       return;
     }
-    
+
     if (status === "authenticated" && session?.user?.role === "SuperAdmin") {
       router.push("/superadmin");
     }
@@ -91,10 +91,10 @@ export default function Dashboard() {
           const claimsData = await claimsRes.json();
           const activitiesData = await activitiesRes.json();
 
-          setBeds(bedsData.map((b: Bed) => ({ ...b, id: b._id || b.id })));
-          setPatients(patientsData.map((p: Patient) => ({ ...p, id: p._id || p.id })));
-          setClaims(claimsData.map((c: Claim) => ({ ...c, id: c._id || c.id })));
-          setActivities(activitiesData.map((a: Activity) => ({ ...a, id: a._id || a.id })));
+          setBeds(Array.isArray(bedsData) ? bedsData.map((b: Bed) => ({ ...b, id: b._id || b.id })) : []);
+          setPatients(Array.isArray(patientsData) ? patientsData.map((p: Patient) => ({ ...p, id: p._id || p.id })) : []);
+          setClaims(Array.isArray(claimsData) ? claimsData.map((c: Claim) => ({ ...c, id: c._id || c.id })) : []);
+          setActivities(Array.isArray(activitiesData) ? activitiesData.map((a: Activity) => ({ ...a, id: a._id || a.id })) : []);
         } catch (err) {
           console.error("Dashboard fetch failed", err);
         } finally {

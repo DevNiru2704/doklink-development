@@ -52,7 +52,7 @@ class HospitalRegistrationSerializer(serializers.Serializer):
     adminName = serializers.CharField(max_length=200)
     adminEmail = serializers.EmailField()
     adminPassword = serializers.CharField(min_length=6)
-    adminPhone = serializers.CharField(max_length=20, required=False, default='')
+    adminPhone = serializers.CharField(max_length=20, required=False, default='', allow_blank=True)
     adminRole = serializers.ChoiceField(
         choices=['HospitalAdmin', 'BasicUser'],
         default='HospitalAdmin'
@@ -89,8 +89,8 @@ class CreateStaffSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=200)
     email = serializers.EmailField()
     password = serializers.CharField(min_length=6)
-    phone = serializers.CharField(max_length=20, required=False, default='')
-    department = serializers.CharField(max_length=100, required=False, default='')
+    phone = serializers.CharField(max_length=20, required=False, default='', allow_blank=True)
+    department = serializers.CharField(max_length=100, required=False, default='', allow_blank=True)
     role = serializers.ChoiceField(
         choices=['HospitalAdmin', 'BasicUser'],
         required=False,
