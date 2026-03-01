@@ -1,16 +1,7 @@
 // config/api.ts
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// API Configuration
-const API_BASE_URL = __DEV__
-  ? 'http://192.168.1.107:8000'  // Your computer's IP for Expo Go. 
-  : 'https://your-production-domain.com';  // Production
-
-// Alternative URLs for different environments:
-// const API_BASE_URL = 'http://127.0.0.1:8000';  // Only works with emulator/simulator
-// const API_BASE_URL = 'http://10.0.2.2:8000';  // Android emulator only
-// const API_BASE_URL = 'http://localhost:8000';  // iOS simulator only
+import { API_BASE_URL } from './env';
 
 // Create axios instance
 const apiClient = axios.create({

@@ -1,11 +1,7 @@
 // config/cloudinary.ts
 // Cloudinary Configuration fetched from backend
 import axios from 'axios';
-
-// API Configuration - same as api.ts
-const API_BASE_URL = __DEV__
-  ? 'http://192.168.1.107:8000'  // Your computer's IP for Expo Go
-  : 'https://your-production-domain.com';  // Production
+import { API_BASE_URL } from './env';
 
 export interface CloudinaryConfig {
   cloudName: string;
