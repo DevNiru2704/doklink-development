@@ -47,6 +47,18 @@ def api_root(request):
                 'payments': '/api/v1/healthcare/payments/',
                 'doctors': '/api/v1/healthcare/doctors/',
                 'hospitals': '/api/v1/healthcare/hospitals/',
+            },
+            'hospital_dashboard': {
+                'auth_login': '/api/v1/hospital-dashboard/auth/login/',
+                'hospitals': '/api/v1/hospital-dashboard/hospitals/',
+                'hospitals_register': '/api/v1/hospital-dashboard/hospitals/register/',
+                'users': '/api/v1/hospital-dashboard/users/',
+                'beds': '/api/v1/hospital-dashboard/beds/',
+                'patients': '/api/v1/hospital-dashboard/patients/',
+                'claims': '/api/v1/hospital-dashboard/claims/',
+                'activities': '/api/v1/hospital-dashboard/activities/',
+                'documents': '/api/v1/hospital-dashboard/documents/',
+                'bed_config': '/api/v1/hospital-dashboard/bed-config/',
             }
         }
     })
@@ -62,6 +74,7 @@ urlpatterns = [
     # API endpoints
     path('api/v1/auth/', include('app_auth.urls')),
     path('api/v1/healthcare/', include('healthcare.urls')),
+    path('api/v1/hospital-dashboard/', include('hospital_dashboard.urls')),
     
     # Development tools (always keep last)
     path('__reload__/', include('django_browser_reload.urls'))

@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'app_auth',
     'healthcare',
+    'hospital_dashboard',
     'django_browser_reload'
     
 ]
