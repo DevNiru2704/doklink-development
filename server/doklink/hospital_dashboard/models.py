@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password, check_password
 from django.contrib.postgres.fields import ArrayField
 from healthcare.models import Hospital
@@ -111,6 +112,12 @@ class HospitalPatient(models.Model):
     hospital = models.ForeignKey(
         Hospital, on_delete=models.CASCADE,
         related_name='dashboard_patients'
+    )
+    linked_user = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='hospital_patient_records',
+        help_text="Link to mobile app user (matched by phone number)"
     )
     uhid = models.CharField(max_length=50, blank=True)
     name = models.CharField(max_length=200)

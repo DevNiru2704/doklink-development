@@ -26,7 +26,9 @@ interface Bed {
   _id?: string;
   id: string;
   bedNumber: string;
+  bedCategory: string;
   ward: string;
+  department: string;
   status: BedStatus;
 }
 
@@ -54,6 +56,13 @@ interface Activity {
   time: string | Date;
 }
 
+interface BedConfig {
+  bedCategories: string[];
+  departments: string[];
+  floors: string[];
+  wings: string[];
+}
+
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -61,6 +70,7 @@ export default function Dashboard() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [bedCategories, setBedCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -78,23 +88,32 @@ export default function Dashboard() {
     if (status === "authenticated") {
       async function fetchData() {
         try {
-          const [bedsRes, patientsRes, claimsRes, activitiesRes] =
+          const [bedsRes, patientsRes, claimsRes, activitiesRes, bedConfigRes] =
             await Promise.all([
               fetch("/api/beds"),
               fetch("/api/patients"),
               fetch("/api/claims"),
               fetch("/api/activities"),
+              fetch("/api/bed-config"),
             ]);
 
           const bedsData = await bedsRes.json();
           const patientsData = await patientsRes.json();
           const claimsData = await claimsRes.json();
           const activitiesData = await activitiesRes.json();
+          const bedConfigData = await bedConfigRes.json();
 
-          setBeds(Array.isArray(bedsData) ? bedsData.map((b: Bed) => ({ ...b, id: b._id || b.id })) : []);
+          const parsedBeds = Array.isArray(bedsData) ? bedsData.map((b: Bed) => ({ ...b, id: b._id || b.id })) : [];
+          setBeds(parsedBeds);
           setPatients(Array.isArray(patientsData) ? patientsData.map((p: Patient) => ({ ...p, id: p._id || p.id })) : []);
           setClaims(Array.isArray(claimsData) ? claimsData.map((c: Claim) => ({ ...c, id: c._id || c.id })) : []);
           setActivities(Array.isArray(activitiesData) ? activitiesData.map((a: Activity) => ({ ...a, id: a._id || a.id })) : []);
+
+          // Build dynamic categories from bed-config + actual bed data
+          const configCategories: string[] = bedConfigData?.bedCategories || [];
+          const bedDataCategories = [...new Set(parsedBeds.map((b: Bed) => b.bedCategory).filter(Boolean))];
+          const allCategories = [...new Set([...configCategories, ...bedDataCategories])];
+          setBedCategories(allCategories.length > 0 ? allCategories : ['General', 'ICU']);
         } catch (err) {
           console.error("Dashboard fetch failed", err);
         } finally {
@@ -202,18 +221,19 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-8">
-            {["General", "ICU", "Pediatric", "Maternity", "Emergency"].map((ward) => {
-              const wardBeds = beds.filter(b => b.ward === ward);
+            {bedCategories.map((category) => {
+              const categoryBeds = beds.filter(b => b.bedCategory === category);
+              if (categoryBeds.length === 0) return null;
               return (
-                <div key={ward}>
+                <div key={category}>
                   <div className="flex justify-between items-center mb-4">
-                    <span className="font-bold text-white text-lg">{ward}</span>
+                    <span className="font-bold text-white text-lg">{category}</span>
                     <span className="text-sm text-white bg-white/20 px-3 py-1 rounded-full">
-                      {wardBeds.filter(b => b.status === "occupied").length}/{wardBeds.length}
+                      {categoryBeds.filter(b => b.status === "occupied").length}/{categoryBeds.length}
                     </span>
                   </div>
                   <div className="flex gap-3 flex-wrap">
-                    {wardBeds.map(bed => (
+                    {categoryBeds.map(bed => (
                       <Link
                         key={bed.id}
                         href="/beds"

@@ -416,6 +416,9 @@ def manage_patients(request):
             patient.uhid = f"P{patient.id}"
             patient.save(update_fields=['uhid'])
 
+        # Auto-link to mobile app user by phone number
+        _auto_link_patient_to_user(patient)
+
         return Response(HospitalPatientSerializer(patient).data, status=status.HTTP_201_CREATED)
 
     elif request.method == 'PUT':
@@ -653,8 +656,28 @@ def manage_bed_config(request):
 
 
 # ============================================================
-# HELPER
+# HELPERS
 # ============================================================
+
+def _auto_link_patient_to_user(patient):
+    """
+    Try to match a HospitalPatient to a mobile app user by phone number.
+    If found, set patient.linked_user so push notifications go to the right user.
+    """
+    try:
+        from app_auth.models import UserProfile
+        clean_phone = patient.phone.strip().replace(' ', '').replace('-', '')
+        if len(clean_phone) < 10:
+            return
+        profiles = UserProfile.objects.filter(
+            phone_number__endswith=clean_phone[-10:]
+        ).select_related('user')
+        if profiles.exists():
+            patient.linked_user = profiles.first().user
+            patient.save(update_fields=['linked_user'])
+    except Exception:
+        pass  # Non-critical — notifications still work via phone matching
+
 
 def _get_hospital_from_headers(request):
     """

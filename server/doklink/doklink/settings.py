@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'app_auth',
     'healthcare',
     'hospital_dashboard',
+    'notifications',
     'django_browser_reload'
     
 ]
@@ -234,6 +235,9 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-hospital-id',
+    'x-user-id',
+    'x-user-role',
 ]
 
 CORS_ALLOW_METHODS = [

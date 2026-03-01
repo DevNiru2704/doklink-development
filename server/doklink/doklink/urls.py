@@ -59,6 +59,13 @@ def api_root(request):
                 'activities': '/api/v1/hospital-dashboard/activities/',
                 'documents': '/api/v1/hospital-dashboard/documents/',
                 'bed_config': '/api/v1/hospital-dashboard/bed-config/',
+            },
+            'notifications': {
+                'register_push_token': '/api/v1/notifications/push-token/register/',
+                'unregister_push_token': '/api/v1/notifications/push-token/unregister/',
+                'list': '/api/v1/notifications/',
+                'mark_read': '/api/v1/notifications/mark-read/',
+                'unread_count': '/api/v1/notifications/unread-count/',
             }
         }
     })
@@ -75,6 +82,7 @@ urlpatterns = [
     path('api/v1/auth/', include('app_auth.urls')),
     path('api/v1/healthcare/', include('healthcare.urls')),
     path('api/v1/hospital-dashboard/', include('hospital_dashboard.urls')),
+    path('api/v1/notifications/', include('notifications.urls')),
     
     # Development tools (always keep last)
     path('__reload__/', include('django_browser_reload.urls'))

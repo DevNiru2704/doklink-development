@@ -16,6 +16,11 @@ import apiClient, {
   ForgotPasswordOTPResponse
 } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  registerForPushNotifications,
+  registerTokenWithBackend,
+  unregisterTokenFromBackend,
+} from './notificationService';
 
 class AuthService {
   // Store authentication tokens
@@ -81,6 +86,9 @@ class AuthService {
       await this.storeTokens(result.tokens);
       await this.storeUser(result.user);
 
+      // Register push notifications after successful signup
+      this._registerPushToken();
+
       return result;
     } catch (error: any) {
       console.error('SignUp Error:', error);
@@ -144,6 +152,9 @@ class AuthService {
       await this.storeTokens(result.tokens);
       await this.storeUser(result.user);
 
+      // Register push notifications after successful login
+      this._registerPushToken();
+
       return result;
     } catch (error: any) {
       console.error('Login Error:', error);
@@ -180,16 +191,27 @@ class AuthService {
   // Logout user
   async logout() {
     try {
+      // Unregister push token before clearing auth
+      await unregisterTokenFromBackend();
+
       // Clear local storage
       await this.clearTokens();
-
-      // Note: You might want to call a logout endpoint here to invalidate tokens on server
-      // await apiClient.post('/logout/');
-
     } catch (error) {
       console.error('Logout Error:', error);
       // Still clear local tokens even if server logout fails
       await this.clearTokens();
+    }
+  }
+
+  // Internal: Register push token (non-blocking, best-effort)
+  private async _registerPushToken() {
+    try {
+      const pushToken = await registerForPushNotifications();
+      if (pushToken) {
+        await registerTokenWithBackend(pushToken);
+      }
+    } catch (error) {
+      console.log('Push token registration (non-critical):', error);
     }
   }
 

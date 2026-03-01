@@ -312,6 +312,13 @@ export const API_ENDPOINTS = {
   SEND_FORGOT_PASSWORD_OTP: '/auth/send-forgot-password-otp/',
   VERIFY_FORGOT_PASSWORD_OTP: '/auth/verify-forgot-password-otp/',
   CONFIRM_PASSWORD_RESET: '/auth/confirm-password-reset/',
+
+  // Push Notifications
+  REGISTER_PUSH_TOKEN: '/notifications/push-token/register/',
+  UNREGISTER_PUSH_TOKEN: '/notifications/push-token/unregister/',
+  NOTIFICATIONS_LIST: '/notifications/',
+  NOTIFICATIONS_MARK_READ: '/notifications/mark-read/',
+  NOTIFICATIONS_UNREAD_COUNT: '/notifications/unread-count/',
 };
 
 export default apiClient;

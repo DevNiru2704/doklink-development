@@ -17,6 +17,7 @@ import { authService } from '../../services/authService';
 import apiClient from '../../config/api';
 import razorpayService from '../../services/razorpayService';
 import { RAZORPAY_KEY_ID } from '../../config/razorpay';
+import { useNotificationStore } from '../../store/notificationStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 64; // Card width with margins
@@ -66,6 +67,7 @@ export default function Dashboard() {
     const [timeRemaining, setTimeRemaining] = useState<{ [key: number]: string }>({});
     const [activeCardIndex, setActiveCardIndex] = useState(0);
     const [paymentLoading, setPaymentLoading] = useState<number | null>(null); // booking ID being paid
+    const { unreadCount, refreshUnreadCount } = useNotificationStore();
 
     const fetchDashboardData = async () => {
         try {
@@ -168,6 +170,7 @@ export default function Dashboard() {
     const onRefresh = () => {
         setRefreshing(true);
         fetchDashboardData();
+        refreshUnreadCount();
     };
 
     const formatDate = (dateString: string) => {
@@ -360,8 +363,15 @@ export default function Dashboard() {
                     </Text>
                 </View>
                 <View style={styles.headerIcons}>
-                    <TouchableOpacity style={styles.iconButton}>
+                    <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/pages/Notifications')}>
                         <Ionicons name="notifications-outline" size={24} color={isDark ? '#ffffff' : '#111827'} />
+                        {unreadCount > 0 && (
+                            <View style={styles.notificationBadge}>
+                                <Text style={styles.notificationBadgeText}>
+                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                </Text>
+                            </View>
+                        )}
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.iconButton}>
                         <View style={styles.avatar}>
@@ -809,6 +819,24 @@ const styles = StyleSheet.create({
     },
     iconButton: {
         padding: 8,
+        position: 'relative' as const,
+    },
+    notificationBadge: {
+        position: 'absolute' as const,
+        top: 2,
+        right: 2,
+        backgroundColor: '#ef4444',
+        borderRadius: 10,
+        minWidth: 18,
+        height: 18,
+        justifyContent: 'center' as const,
+        alignItems: 'center' as const,
+        paddingHorizontal: 4,
+    },
+    notificationBadgeText: {
+        color: '#ffffff',
+        fontSize: 10,
+        fontWeight: '700' as const,
     },
     avatar: {
         width: 40,
