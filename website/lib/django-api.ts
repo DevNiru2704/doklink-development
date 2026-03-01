@@ -9,12 +9,12 @@
  */
 
 const DJANGO_API_URL =
-  process.env.DJANGO_API_URL || "http://localhost:8000/api/v1/hospital-dashboard";
+    process.env.DJANGO_API_URL || "http://localhost:8000/api/v1/hospital-dashboard";
 
 interface FetchOptions {
-  method?: string;
-  body?: unknown;
-  headers?: Record<string, string>;
+    method?: string;
+    body?: unknown;
+    headers?: Record<string, string>;
 }
 
 /**
@@ -23,27 +23,27 @@ interface FetchOptions {
  * middleware already sets: x-hospital-id, x-user-id, x-user-role).
  */
 export async function djangoFetch<T = any>(
-  path: string,
-  opts: FetchOptions = {},
-  contextHeaders?: Record<string, string>
+    path: string,
+    opts: FetchOptions = {},
+    contextHeaders?: Record<string, string>
 ): Promise<{ data: T; status: number }> {
-  const url = `${DJANGO_API_URL}${path}`;
+    const url = `${DJANGO_API_URL}${path}`;
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(contextHeaders ?? {}),
-    ...(opts.headers ?? {}),
-  };
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(contextHeaders ?? {}),
+        ...(opts.headers ?? {}),
+    };
 
-  const res = await fetch(url, {
-    method: opts.method ?? "GET",
-    headers,
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-    cache: "no-store",
-  });
+    const res = await fetch(url, {
+        method: opts.method ?? "GET",
+        headers,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+        cache: "no-store",
+    });
 
-  const data = (await res.json().catch(() => null)) as T;
-  return { data, status: res.status };
+    const data = (await res.json().catch(() => null)) as T;
+    return { data, status: res.status };
 }
 
 /**
@@ -51,12 +51,12 @@ export async function djangoFetch<T = any>(
  * (middleware injects x-hospital-id / x-user-role / x-user-id).
  */
 export function extractContextHeaders(request: Request): Record<string, string> {
-  const h: Record<string, string> = {};
-  const hospitalId = request.headers.get("x-hospital-id");
-  const userId = request.headers.get("x-user-id");
-  const userRole = request.headers.get("x-user-role");
-  if (hospitalId) h["X-Hospital-Id"] = hospitalId;
-  if (userId) h["X-User-Id"] = userId;
-  if (userRole) h["X-User-Role"] = userRole;
-  return h;
+    const h: Record<string, string> = {};
+    const hospitalId = request.headers.get("x-hospital-id");
+    const userId = request.headers.get("x-user-id");
+    const userRole = request.headers.get("x-user-role");
+    if (hospitalId) h["X-Hospital-Id"] = hospitalId;
+    if (userId) h["X-User-Id"] = userId;
+    if (userRole) h["X-User-Role"] = userRole;
+    return h;
 }

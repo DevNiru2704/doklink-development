@@ -131,7 +131,7 @@ export default function Dashboard() {
 
         const interval = setInterval(() => {
             const newTimeRemaining: { [key: number]: string } = {};
-            
+
             reservedBookings.forEach(booking => {
                 const now = new Date().getTime();
                 const expiryTime = new Date(booking.reservation_expires_at!).getTime();
@@ -147,7 +147,7 @@ export default function Dashboard() {
                     newTimeRemaining[booking.id] = `${minutes}m ${seconds}s`;
                 }
             });
-            
+
             setTimeRemaining(newTimeRemaining);
         }, 1000);
 
@@ -241,15 +241,15 @@ export default function Dashboard() {
 
     const handlePayNow = async (booking: EmergencyBooking) => {
         if (paymentLoading) return; // Prevent double-tap
-        
+
         setPaymentLoading(booking.id);
-        
+
         try {
             // Step 1: Create Razorpay order
             const orderResponse = await apiClient.post('/healthcare/out-of-pocket-payments/create_razorpay_order/', {
                 admission_id: booking.id
             });
-            
+
             const orderData = orderResponse.data as {
                 order_id: string;
                 amount: number;
@@ -259,7 +259,7 @@ export default function Dashboard() {
                 admission_id: number;
                 hospital_name: string;
             };
-            
+
             // Step 2: Open Razorpay checkout
             const options = {
                 key: RAZORPAY_KEY_ID,
@@ -275,7 +275,7 @@ export default function Dashboard() {
                     color: '#3b82f6'
                 }
             };
-            
+
             razorpayService.openCheckout(
                 options,
                 async (response) => {
@@ -286,13 +286,13 @@ export default function Dashboard() {
                             razorpay_payment_id: response.razorpay_payment_id,
                             razorpay_signature: response.razorpay_signature,
                         });
-                        
+
                         Alert.alert(
                             'Payment Successful',
                             'Your out-of-pocket payment has been completed successfully.',
                             [{ text: 'OK' }]
                         );
-                        
+
                         // Refresh dashboard to remove paid booking from carousel
                         fetchDashboardData();
                     } catch (verifyError) {
@@ -422,17 +422,17 @@ export default function Dashboard() {
                                                     {booking.bed_type === 'icu' ? 'ICU' : 'General Ward'}
                                                 </Text>
                                             </View>
-                                            <View style={[styles.statusBadge, { 
-                                                backgroundColor: booking.status === 'admitted' ? '#10b98120' : 
-                                                                 booking.status === 'reserved' ? '#3b82f620' :
-                                                                 booking.status === 'arrived' ? '#f59e0b20' :
-                                                                 booking.status === 'discharged' ? '#6b728020' : '#10b98120'
+                                            <View style={[styles.statusBadge, {
+                                                backgroundColor: booking.status === 'admitted' ? '#10b98120' :
+                                                    booking.status === 'reserved' ? '#3b82f620' :
+                                                        booking.status === 'arrived' ? '#f59e0b20' :
+                                                            booking.status === 'discharged' ? '#6b728020' : '#10b98120'
                                             }]}>
-                                                <Text style={[styles.statusText, { 
+                                                <Text style={[styles.statusText, {
                                                     color: booking.status === 'admitted' ? '#10b981' :
-                                                           booking.status === 'reserved' ? '#3b82f6' :
-                                                           booking.status === 'arrived' ? '#f59e0b' :
-                                                           booking.status === 'discharged' ? '#6b7280' : '#10b981'
+                                                        booking.status === 'reserved' ? '#3b82f6' :
+                                                            booking.status === 'arrived' ? '#f59e0b' :
+                                                                booking.status === 'discharged' ? '#6b7280' : '#10b981'
                                                 }]}>
                                                     {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                                                 </Text>
@@ -663,7 +663,7 @@ export default function Dashboard() {
                                                         ₹{parseFloat(booking.out_of_pocket_amount || '0').toLocaleString('en-IN')}
                                                     </Text>
                                                 </View>
-                                                
+
                                                 {/* Pay Now Button - Only for discharged bookings with unpaid out-of-pocket */}
                                                 {booking.status === 'discharged' && parseFloat(booking.out_of_pocket_amount || '0') > 0 && (
                                                     <TouchableOpacity
